@@ -181,6 +181,10 @@ main {
   max-width: 58%;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* The accent on the border and nowhere else: on `--surface` the default
+     `--border` is near-invisible next to the wordmark, and this chip is the
+     only control on the page that changes what the whole board shows. */
+  border-color: var(--accent);
 }
 
 /* The wordmark. Set in the stencil face, lowercase, tight — the product is called ezbus
