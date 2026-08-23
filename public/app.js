@@ -31,6 +31,7 @@ import {
   dismissGate,
   distanceLabel,
   finderState,
+  foldRowCopy,
   gateMessageFor,
   gateState,
   HINT_COPY,
@@ -43,6 +44,7 @@ import {
   noStopsMessage,
   originCoord,
   originsState,
+  pinFold,
   placeFromRow,
   readOriginRecord,
   readRecents,
@@ -188,6 +190,28 @@ let pendingLoad;
  * clauses now, so there is nothing to defend.
  */
 let mock = false;
+/**
+ * Whether the board on screen was ranked from a coordinate — the `located` flag
+ * off the last successful `/api/board`, and the only evidence the pinned fold
+ * has to work from. `pinFold` reads it as a literal `true`, so a board the server
+ * could not place keeps today's full pinned cards rather than folding away a stop
+ * it cannot say the distance to. Written on success only, so a switch whose board
+ * never loaded leaves this describing the board still in front of the rider.
+ */
+let located = false;
+/**
+ * The fold's last decision, which is what makes the 800–1000 m band sticky — see
+ * `PIN_UNFOLD_M` in origin.js. `null` is "no decision yet", and the band's first
+ * sighting expands, so a fresh board never opens folded on a guess.
+ * @type {'none' | 'expanded' | 'folded' | null}
+ */
+let foldPrev = null;
+/**
+ * The rider has asked to see the folded pins. In memory only and deliberately not
+ * a stored preference — a reload recomputes the fold from distance, which is the
+ * right answer anyway, and a setting would be a setting (AGENTS.md).
+ */
+let foldOpen = false;
 /**
  * The intro has been put on screen this session. Nothing is persisted about it —
  * the dialog's job is done the moment a door is chosen, and a door being chosen
@@ -600,18 +624,56 @@ const observer =
     : null;
 
 /**
+ * The pins, stood down into one row, when every one of them is out of walking
+ * range of where the board is ranked from. It stands in the grid where those cards
+ * were, so the first screenful can lead with the stops the rider is actually
+ * standing among.
+ *
+ * Every string on it comes from `foldRowCopy`: the count, the distance and the
+ * action are one piece of copy, decided and pinned by tests on the pure side of
+ * the line, so nothing here writes a second copy of them. `Math.min` is safe
+ * unguarded — `pinFold` only ever answers `'folded'` once every pin has a finite
+ * `distanceM`, which is the same evidence rule that keeps an unlocated board
+ * expanded.
+ */
+function foldRow(pinnedStops, open) {
+  const nearest = Math.min(...pinnedStops.map((stop) => stop.distanceM));
+  const { label, action } = foldRowCopy(pinnedStops.length, nearest, open);
+  return `
+      <button class="pin-fold" type="button" data-fold aria-expanded="${open}">
+        <span class="pin-fold-star" aria-hidden="true">★</span>
+        <span class="pin-fold-label">${escape(label)}</span>
+        <span class="pin-fold-action">${escape(action)}</span>
+      </button>`;
+}
+
+/**
  * Rebuilds card shells only when the set or order of stops changes, so the
  * ten-second re-render touches nothing but the arrival rows.
  */
 function renderShells() {
-  const signature = board.map((stop) => `${stop.code}${stop.pinned ? '*' : ''}`).join(',');
+  // One decision per render, and the answer is kept: the band between
+  // `PIN_UNFOLD_M` and `PIN_FOLD_M` is sticky, and `pinFold` reads its own last
+  // answer back to make it so.
+  const pinnedStops = board.filter((stop) => stop.pinned);
+  const fold = pinFold({ pinnedStops, located, previous: foldPrev });
+  foldPrev = fold;
+  const folded = fold === 'folded';
+  const showPins = !folded || foldOpen;
+
+  // The signature has to carry how the pins are *drawn*, not only which stops are
+  // on the board: folded and opened are two different boards made of the same
+  // eight stops, so without this prefix the toggle would repaint nothing at all.
+  const drawn = folded ? (foldOpen ? 'O|' : 'F|') : 'E|';
+  const signature =
+    drawn + board.map((stop) => `${stop.code}${stop.pinned ? '*' : ''}`).join(',');
   if (signature === shellSignature) return;
   shellSignature = signature;
 
   observer?.disconnect();
   visible.clear();
 
-  el.board.innerHTML = board
+  const cards = (showPins ? board : board.filter((stop) => !stop.pinned))
     .map((stop) => {
       // What the distance means depends on the mode, so the cell's whole content
       // is one decision: metres and a walk, or "Here" on the card a gps user is
@@ -642,8 +704,15 @@ function renderShells() {
     })
     .join('');
 
+  // The row goes first, and the pinned cards — when they are showing at all —
+  // stay in the order the board handed them over, which is pins before nearby.
+  el.board.innerHTML = (folded ? foldRow(pinnedStops, foldOpen) : '') + cards;
+
+  // Cards only, by `data-code`, rather than every child of the board: the fold row
+  // is a child too and is not a stop, and observing it would put `undefined` into
+  // `visible` — which the arrivals refresh reads to decide what to ask for.
   if (observer) {
-    for (const card of el.board.children) observer.observe(card);
+    for (const card of el.board.querySelectorAll('[data-code]')) observer.observe(card);
   }
 }
 
@@ -664,10 +733,28 @@ function render() {
  * together: `renderShells` short-circuits on a matching signature, so clearing
  * the markup while leaving the signature behind paints nothing at all next time.
  * The `board` array is deliberately left alone — `switchOrigin` restores from it.
+ *
+ * The pinned fold dies with the board, and it is reset **here** rather than in
+ * `switchOrigin` because this is the one function every origin change goes
+ * through: the address switch calls it, and `startWithLocation` leaving place mode
+ * calls it directly rather than through `switchOrigin`. Both fold states have to
+ * go — the decision because the distances it was made from belong to the old
+ * origin, and the override because a rider who opened the pins at one place has
+ * said nothing about the next one.
+ *
+ * Deliberately **not** reset on the `MOVED_M` re-rank in `locate()`, which is the
+ * only other path that reloads the board and does not come through here. That is
+ * the same door with a newer fix, not a new origin, and it is precisely the case
+ * the 800–1000 m hysteresis exists for: nulling `foldPrev` every 200 m of walking
+ * would flip the board's shape inside the band, and collapsing pins the rider has
+ * just opened while they are reading them is that same regression from the other
+ * side.
  */
 function resetBoard() {
   el.board.innerHTML = '';
   shellSignature = '';
+  foldOpen = false;
+  foldPrev = null;
 }
 
 // --- data ---------------------------------------------------------------
@@ -729,6 +816,9 @@ async function loadBoard(loc) {
     const data = await res.json();
 
     board = data.stops ?? [];
+    // Captured with the stops it describes, and only on success: the fold reads it
+    // to decide whether the pinned distances on this board are evidence at all.
+    located = data.located === true;
     if (board.length > 0) hideGate();
     else if (coord) {
       gate(noStopsMessage(origin), {
@@ -1627,7 +1717,25 @@ el.coachDismiss.addEventListener('click', () => {
 
 el.board.addEventListener('click', (event) => {
   const button = event.target.closest('[data-pin]');
-  if (button) togglePin(button.dataset.pin);
+  if (button) {
+    togglePin(button.dataset.pin);
+    return;
+  }
+  // The fold is a rendering choice about stops already in hand, so showing them
+  // costs a repaint and **no request** — the arrivals for a pinned stop came down
+  // with the board. `render()` rather than `renderShells()` so the bodies of the
+  // cards that just appeared are filled in the same breath.
+  if (event.target.closest('[data-fold]')) {
+    foldOpen = !foldOpen;
+    render();
+    // The repaint replaces the whole board, so the button that was just pressed no
+    // longer exists and focus would fall to `<body>` — a keyboard user would have
+    // to tab the page again to reach the control they are toggling. The row is
+    // still there in the new markup, one press further on, so focus goes back to
+    // it. A tap does not light the ring: `:focus-visible` follows the last input,
+    // not the focus call.
+    el.board.querySelector('[data-fold]')?.focus();
+  }
 });
 
 document.addEventListener('visibilitychange', () => {

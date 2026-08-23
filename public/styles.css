@@ -1246,6 +1246,68 @@ input[type='search']::-webkit-search-cancel-button {
   padding-right: 2.4rem;
 }
 
+/* --- the pinned fold ---
+   The row the pinned cards step aside into when every one of them is a kilometre or
+   more from where the board is ranked from (`pinFold` in origin.js). It stands in the
+   board grid where those cards were, so it is built like a card and not like a
+   control bar: the same `--radius`, the same `--surface` face, the full width of the
+   column.
+
+   The edge is dashed and accent rather than solid and `--border`. Dashed because this
+   is the one place on the board where something is deliberately *not* drawn, and a
+   broken line says "there is more behind this" without a word of copy; accent because
+   this **is** the pinned cards, which already carry the accent — no new colour and no
+   third family (style-guide.md), and the ★ is the pin's own glyph at the pin's own
+   token.
+
+   No `box-shadow`: a fold is a gap in the board rather than a raised surface, so the
+   dashed edge is its only edge and it is one that draws in both schemes — which is
+   also why nothing here needs to compose `--shadow`, and why no `none` may be written
+   in its place (see the dark block). The focus ring is the sheet's own
+   `button:focus-visible`. */
+.pin-fold {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  /* 2.75rem ≈ 44 px, and this row is the only way back to the pins. */
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.pin-fold:active {
+  background: var(--surface-2);
+}
+
+.pin-fold-star {
+  flex: none;
+  color: var(--accent);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+/* Takes the slack so the action label lands on the right edge, where a card's own pin
+   target sits. `min-width: 0` overrides a flex item's `min-width: auto` — without it a
+   long label widens the row and scrolls the board sideways instead of wrapping. */
+.pin-fold-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pin-fold-action {
+  flex: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 /* --- arrivals table ---
    Four columns shared by the heading row and every service row: the service
    number, then the next three buses. The first bus is the widest because it is the
