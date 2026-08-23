@@ -11,12 +11,18 @@
  *      T8 in docs/seo-implementation-plan.md), so stop coverage is bounded
  *      two-sided by the link-graph checks below instead of by an exact count.
  *   2. Every sitemap URL serves 200; every /stop/ page carries an <h1>,
- *      parseable JSON-LD, and at least one /bus/ link (no over-inclusion: a
- *      sitemap stop must have services); every /bus/ page carries at least
- *      one <ol> and parseable JSON-LD, and every /stop/ href it emits must be
- *      in the sitemap (no under-inclusion: a serviced stop must be listed);
- *      every page carries exactly one canonical tag whose href is its own
- *      canonical URL.
+ *      parseable JSON-LD, at least one /bus/ link (no over-inclusion: a
+ *      sitemap stop must have services), a keyword <title> matching
+ *      `^bus stop \d{5} ·`, and a meta description that differs from the
+ *      generic shell's (fetched once via the static /stop.html path, so the
+ *      comparison tracks the copy rather than hardcoding it); every /bus/
+ *      page carries at least one <ol>, parseable JSON-LD, a <title>
+ *      containing `timing & route` (entity-decoded), and every /stop/ href
+ *      it emits must be in the sitemap (no under-inclusion: a serviced stop
+ *      must be listed); the homepage `/` (also a sitemap URL) carries a
+ *      <title> containing `bus timing` and exactly one FAQPage JSON-LD block
+ *      whose mainEntity holds exactly 4 questions; every page carries
+ *      exactly one canonical tag whose href is its own canonical URL.
  *   3. A BFS over internal hrefs from `/` reaches every sitemap URL within
  *      depth 3 (home → /buses → /bus/N → /stop/C).
  *
@@ -90,6 +96,27 @@ const jsonLdBlocks = (path, html) => {
   return { count: blocks.length, parsed };
 };
 
+/** The page's <title> text, entity-decoded for the few entities our copy uses. */
+const pageTitle = (html) => {
+  const m = html.match(/<title>([\s\S]*?)<\/title>/);
+  return m ? decodeEntities(m[1]) : null;
+};
+
+/** The page's <meta name="description"> content, entity-decoded; null if absent. */
+const metaDescription = (html) => {
+  const m = html.match(/<meta\s+name="description"\s+content="([^"]*)"/);
+  return m ? decodeEntities(m[1]) : null;
+};
+
+/** Minimal entity decoding — enough for title/description copy (&amp; etc.). */
+const decodeEntities = (text) =>
+  text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+
 /** Every canonical href on the page, however formatted the tag is. */
 const canonicals = (html) =>
   [...html.matchAll(/<link\s+rel="canonical"\s+href="([^"]*)"[^>]*>/g)].map((m) => m[1]);
@@ -162,7 +189,20 @@ for (const loc of locs) {
   else pages.set(path, loc === CANONICAL_ORIGIN ? `${CANONICAL_ORIGIN}/` : loc);
 }
 
-// --- 2. Every sitemap URL: 200, canonical, h1/ol, JSON-LD, inclusion -------
+// --- 2. Every sitemap URL: 200, canonical, h1/ol, JSON-LD, titles, inclusion
+
+// The stop shell's generic meta description, fetched once via the static path
+// (express.static serves public/stop.html verbatim). Every rendered /stop/
+// page must carry a description that differs from it — this tracks the copy
+// at runtime instead of hardcoding the string here.
+const stopShell = await get('/stop.html');
+let genericStopDescription = null;
+if (stopShell.status !== 200) {
+  fail(`/stop.html: expected 200 (needed as the generic-description baseline), got ${stopShell.status}`);
+} else {
+  genericStopDescription = metaDescription(stopShell.body);
+  if (genericStopDescription === null) fail('/stop.html: no meta description to use as the generic baseline');
+}
 
 /** @type {Map<string, string>} /stop/ path seen on a /bus/ page → the first /bus/ page that linked it. */
 const stopLinksFromRoutes = new Map();
@@ -187,13 +227,41 @@ await eachLimit([...pages.entries()], FETCH_CONCURRENCY, async ([path, canonical
     // No over-inclusion: a stop in the sitemap must have at least one service
     // calling there — a service-less stop belongs out of the sitemap.
     if (!page.body.includes('href="/bus/')) fail(`${path}: in sitemap but links no /bus/ page (service-less stop over-included)`);
+    // Keyword title: "bus stop <5-digit code> · …".
+    const title = pageTitle(page.body);
+    if (title === null) fail(`${path}: no <title>`);
+    else if (!/^bus stop \d{5} ·/.test(title)) fail(`${path}: <title> "${title}" does not match ^bus stop \\d{5} ·`);
+    // Per-stop description: must exist and differ from the generic shell's.
+    const description = metaDescription(page.body);
+    if (description === null) fail(`${path}: no meta description`);
+    else if (genericStopDescription !== null && description === genericStopDescription) {
+      fail(`${path}: meta description is the generic shell copy, not per-stop`);
+    }
   } else if (path.startsWith('/bus/')) {
     if (!/<ol[\s>]/.test(page.body)) fail(`${path}: no <ol>`);
     const { count } = jsonLdBlocks(path, page.body);
     if (count === 0) fail(`${path}: no JSON-LD block`);
+    const title = pageTitle(page.body);
+    if (title === null) fail(`${path}: no <title>`);
+    else if (!title.includes('timing & route')) fail(`${path}: <title> "${title}" does not contain "timing & route"`);
     for (const link of internalLinks(page.body)) {
       if (link.startsWith('/stop/') && !stopLinksFromRoutes.has(link)) {
         stopLinksFromRoutes.set(link, path);
+      }
+    }
+  } else if (path === '/') {
+    const title = pageTitle(page.body);
+    if (title === null) fail(`${path}: no <title>`);
+    else if (!title.includes('bus timing')) fail(`${path}: <title> "${title}" does not contain "bus timing"`);
+    // Exactly one FAQPage JSON-LD block, parseable, with exactly 4 questions.
+    const { parsed } = jsonLdBlocks(path, page.body);
+    const faqBlocks = parsed.filter((block) => block['@type'] === 'FAQPage');
+    if (faqBlocks.length !== 1) {
+      fail(`${path}: expected exactly 1 FAQPage JSON-LD block, found ${faqBlocks.length}`);
+    } else {
+      const mainEntity = faqBlocks[0].mainEntity;
+      if (!Array.isArray(mainEntity) || mainEntity.length !== 4) {
+        fail(`${path}: FAQPage mainEntity has ${Array.isArray(mainEntity) ? mainEntity.length : 'no'} questions, expected exactly 4`);
       }
     }
   }
