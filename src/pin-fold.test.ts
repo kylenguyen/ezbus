@@ -232,3 +232,60 @@ describe('pinned fold — the row’s look', () => {
     );
   });
 });
+
+describe('pinned fold — the refresh it saves', () => {
+  const refresh = fn('refreshArrivals');
+
+  // The point of the fold is a first screenful of the stops the rider can walk
+  // to. Refreshing the pins it hid would keep paying for them every 30 s in LTA
+  // quota and cellular data, to repaint cards that are not on screen — the exact
+  // cost AGENTS.md counts. `pins.map` unconditionally is what this file shipped
+  // before the fold, and what a tidy-up would put back.
+  it('asks for pinned stops only while their cards are drawn', () => {
+    assert.match(
+      refresh,
+      /const pinsDrawn = foldPrev !== 'folded' \|\| foldOpen;/,
+      'the pins loop must be guarded by the fold state, open overriding folded',
+    );
+    assert.match(
+      refresh,
+      /new Set\(pinsDrawn \? pins\.map\(\(p\) => p\.code\) : \[\]\)/,
+      'folded, closed pins must never enter the wanted set',
+    );
+  });
+
+  // One source of truth for "are the pinned cards on screen right now". A second
+  // `pinFold` call here would be handed a different `previous` than the render
+  // used, so the two could disagree inside the 800–1000 m band and the board
+  // would show cards nothing was fetched for.
+  it('reads the render’s decision instead of making a second one', () => {
+    assert.ok(
+      !refresh.includes('pinFold('),
+      'refreshArrivals must not recompute the fold — renderShells owns the decision',
+    );
+  });
+
+  // Without an observer, or before it has measured anything, nothing is known
+  // about what is on screen and the whole board is refreshed — folded pins
+  // included. Narrowing this to save the pins would be economy bought with
+  // correctness, on the one path that has no evidence to spend.
+  it('leaves the no-observer fallback refreshing the whole board', () => {
+    assert.match(
+      refresh,
+      /if \(wanted\.size === 0\) for \(const stop of board\) wanted\.add\(stop\.code\);/,
+      'the fallback must still add every stop on the board',
+    );
+  });
+
+  // The economy is the arrivals query's alone: `/api/board` keeps sending every
+  // pin code, because the distances that come back with them are the only
+  // evidence `pinFold` has. Trimming the board query would fold the pins away and
+  // then lose the ability to tell whether they should have been.
+  it('still sends every pin code on the board query', () => {
+    assert.match(
+      fn('loadBoard'),
+      /boardParams\(\{ origin, lastLoc, pins, limit: NEARBY_LIMIT \}\)/,
+      'the board request must carry all pins, folded or not',
+    );
+  });
+});

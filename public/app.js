@@ -851,13 +851,28 @@ async function loadBoard(loc) {
   }
 }
 
-/** Refresh path: only the cards on screen, plus pinned ones wherever they are. */
+/**
+ * Refresh path: only the cards on screen, plus the pinned ones wherever they are
+ * on the board — but only while those cards are actually drawn.
+ */
 async function refreshArrivals() {
   if (board.length === 0 || document.visibilityState !== 'visible') return;
 
-  const wanted = new Set(pins.map((p) => p.code));
+  // A folded, closed pin has no card to paint, so its timings would be fetched
+  // every 30 s only to be thrown away: LTA quota, and on the phone this is built
+  // for, radio time and cellular data the rider pays for. `foldPrev` is the
+  // decision `renderShells` made and stored on the last paint, read back here
+  // rather than recomputed, so "what we ask the server for" and "what is on
+  // screen" cannot answer differently. `/api/board` still sends every pin code
+  // always — the fold needs their distances to reach this decision at all.
+  const pinsDrawn = foldPrev !== 'folded' || foldOpen;
+  const wanted = new Set(pinsDrawn ? pins.map((p) => p.code) : []);
   for (const code of visible) wanted.add(code);
-  // No observer support (or nothing measured yet): refresh the lot.
+  // No observer support (or nothing measured yet): refresh the lot. The condition
+  // now reads "nothing was identified as worth asking for", which a folded board
+  // can reach on its own, and the fallback then fetches the folded pins too. That
+  // is the right way round: where what is on screen is unknown, correctness beats
+  // economy.
   if (wanted.size === 0) for (const stop of board) wanted.add(stop.code);
 
   const codes = board.map((s) => s.code).filter((code) => wanted.has(code));
