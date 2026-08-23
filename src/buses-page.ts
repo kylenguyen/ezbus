@@ -26,7 +26,7 @@ import { escapeHtml } from './stop-page.js';
 /** The generic invite to the board — the sentence for a shell served
  *  unreplaced. A loaded route index swaps it for the full directory. */
 export const BUSES_LIST_TARGET =
-  '<section id="buses-list"><p class="card-msg">Looking for a Singapore bus service? <a href="/">Open the ezbus board</a> to see every bus arriving near you, live.</p></section>';
+  '<section id="buses-list"><p class="card-msg">Looking for Singapore bus timing? <a href="/">Open the ezbus board</a> to see every bus arriving near you, live.</p></section>';
 
 // --- the directory ---------------------------------------------------------------
 

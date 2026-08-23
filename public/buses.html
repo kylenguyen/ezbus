@@ -9,14 +9,14 @@
          Keep them in step with the token blocks at the top of styles.css. -->
     <meta name="theme-color" content="#e7ebe7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121715" media="(prefers-color-scheme: dark)" />
-    <meta name="description" content="Every public bus service in Singapore in one list — number, route and operator — each linking to its full stop-by-stop route with live arrival times." />
+    <meta name="description" content="Every public bus service in Singapore — number, route and operator — each linking to live bus timing for every stop on its route." />
     <!-- This head is entirely static, unlike stop.html and route.html: the page
          is one URL with one title, so there is nothing to inject per request.
          The only swap target in this file is the #buses-list section in the
          body, paired with BUSES_LIST_TARGET in src/buses-page.ts. -->
-    <title>all bus services in Singapore · ezbus</title>
-    <meta property="og:title" content="all bus services in Singapore · ezbus" />
-    <meta property="og:description" content="Every public bus service in Singapore in one list — number, route and operator." />
+    <title>all Singapore bus services · timing &amp; routes · ezbus</title>
+    <meta property="og:title" content="all Singapore bus services · timing &amp; routes · ezbus" />
+    <meta property="og:description" content="Every public bus service in Singapore — number, route and operator — each linking to live bus timing for every stop on its route." />
     <meta property="og:url" content="https://ezbus.sg/buses" />
     <link rel="canonical" href="https://ezbus.sg/buses" />
     <meta property="og:site_name" content="ezbus" />
@@ -67,7 +67,7 @@
            nothing here is live, so nothing needs hydrating. Keep the block on
            one line, and edit it and its constant in the same commit, or the
            injection silently stops. -->
-      <section id="buses-list"><p class="card-msg">Looking for a Singapore bus service? <a href="/">Open the ezbus board</a> to see every bus arriving near you, live.</p></section>
+      <section id="buses-list"><p class="card-msg">Looking for Singapore bus timing? <a href="/">Open the ezbus board</a> to see every bus arriving near you, live.</p></section>
     </main>
 
     <footer class="footer">
