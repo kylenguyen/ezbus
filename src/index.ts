@@ -494,10 +494,13 @@ const STOP_CANONICAL_TAG = '<link rel="canonical" href="https://ezbus.sg/" />';
  * the same commit, or the injection silently stops.
  */
 const ROUTE_SHELL = readFileSync(path.join(import.meta.dirname, '..', 'public', 'route.html'), 'utf8');
-const ROUTE_TITLE_TAG = '<title>bus routes in Singapore · ezbus</title>';
-const ROUTE_OG_TITLE_TAG = '<meta property="og:title" content="bus routes in Singapore · ezbus" />';
+const ROUTE_TITLE_TAG = '<title>bus timing & routes in Singapore · ezbus</title>';
+const ROUTE_OG_TITLE_TAG =
+  '<meta property="og:title" content="bus timing & routes in Singapore · ezbus" />';
+const ROUTE_DESC_TAG =
+  '<meta name="description" content="Bus timing for any Singapore route — where it goes, stop by stop, and live arrivals as your bus approaches." />';
 const ROUTE_OG_DESC_TAG =
-  '<meta property="og:description" content="Where this Singapore bus route goes, stop by stop, and live timings as your bus approaches your stop." />';
+  '<meta property="og:description" content="Bus timing for any Singapore route — where it goes, stop by stop, and live arrivals as your bus approaches." />';
 const ROUTE_OG_URL_TAG = '<meta property="og:url" content="https://ezbus.sg/bus" />';
 const ROUTE_CANONICAL_TAG = '<link rel="canonical" href="https://ezbus.sg/" />';
 
@@ -593,17 +596,18 @@ app.get('/bus/:service', (req, res) => {
   if (service && lead) {
     const title = escapeHtml(
       service.loop
-        ? `bus ${service.serviceNo} · loop at ${service.loopDesc || lead.origin.description} · ezbus`
-        : `bus ${service.serviceNo} · ${lead.origin.description} → ${lead.destination.description} · ezbus`,
+        ? `bus ${service.serviceNo} timing & route · loop at ${service.loopDesc || lead.origin.description} · ezbus`
+        : `bus ${service.serviceNo} timing & route · ${lead.origin.description} → ${lead.destination.description} · ezbus`,
     );
     const description = escapeHtml(
-      `Bus ${service.serviceNo} route: all stops from ${lead.origin.description} to ` +
-        `${lead.destination.description}, with live arrival times. Operated by ${service.operator}.`,
+      `Bus ${service.serviceNo} timing and full route: every stop from ${lead.origin.description} to ` +
+        `${lead.destination.description} with live arrival times. Operated by ${service.operator}.`,
     );
     const url = `https://ezbus.sg/bus/${escapeHtml(service.serviceNo)}`;
     html = html
       .replace(ROUTE_TITLE_TAG, `<title>${title}</title>`)
       .replace(ROUTE_OG_TITLE_TAG, `<meta property="og:title" content="${title}" />`)
+      .replace(ROUTE_DESC_TAG, `<meta name="description" content="${description}" />`)
       .replace(ROUTE_OG_DESC_TAG, `<meta property="og:description" content="${description}" />`)
       .replace(ROUTE_OG_URL_TAG, `<meta property="og:url" content="${url}" />`)
       .replace(ROUTE_CANONICAL_TAG, `<link rel="canonical" href="${url}" />`)

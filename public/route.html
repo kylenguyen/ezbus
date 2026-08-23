@@ -9,19 +9,19 @@
          Keep them in step with the token blocks at the top of styles.css. -->
     <meta name="theme-color" content="#e7ebe7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121715" media="(prefers-color-scheme: dark)" />
-    <meta name="description" content="Where this Singapore bus route goes, stop by stop, and live timings as your bus approaches your stop." />
-    <!-- Server-injected meta, same bargain as stop.html: the five tags below
-         (title, og:title, og:description, og:url, canonical) are replacement
-         targets — `/bus/:service` in src/index.ts swaps each whole tag, by
-         exact string match, for a per-service version when the service is
-         known. The tokens are the generic tags themselves, so this file served
-         unreplaced (express.static, or an unknown service) is already valid,
-         sensibly generic HTML: a junk URL declares the homepage its canonical
-         and stays out of the index. Edit a tag here and its constant in
-         src/index.ts in the same commit, or the injection silently stops. -->
-    <title>bus routes in Singapore · ezbus</title>
-    <meta property="og:title" content="bus routes in Singapore · ezbus" />
-    <meta property="og:description" content="Where this Singapore bus route goes, stop by stop, and live timings as your bus approaches your stop." />
+    <!-- Server-injected meta, same bargain as stop.html: the six tags below
+         (title, og:title, description, og:description, og:url, canonical) are
+         replacement targets — `/bus/:service` in src/index.ts swaps each whole
+         tag, by exact string match, for a per-service version when the service
+         is known. The tokens are the generic tags themselves, so this file
+         served unreplaced (express.static, or an unknown service) is already
+         valid, sensibly generic HTML: a junk URL declares the homepage its
+         canonical and stays out of the index. Edit a tag here and its constant
+         in src/index.ts in the same commit, or the injection silently stops. -->
+    <title>bus timing & routes in Singapore · ezbus</title>
+    <meta property="og:title" content="bus timing & routes in Singapore · ezbus" />
+    <meta name="description" content="Bus timing for any Singapore route — where it goes, stop by stop, and live arrivals as your bus approaches." />
+    <meta property="og:description" content="Bus timing for any Singapore route — where it goes, stop by stop, and live arrivals as your bus approaches." />
     <meta property="og:url" content="https://ezbus.sg/bus" />
     <link rel="canonical" href="https://ezbus.sg/" />
     <meta property="og:site_name" content="ezbus" />
