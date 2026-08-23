@@ -773,6 +773,15 @@ function stamp(when) {
  * loses the tip rather than teaching over a gate or an empty board. A sentence
  * about tapping stops, with no stops on screen, teaches nobody and burns a
  * showing.
+ *
+ * And it is the *cards on screen* that are counted, not the length of the `board`
+ * array, because since the pinned fold the two can disagree: a rider with eight
+ * pins is at the `MAX_STOPS` cap, so `/api/board` returns eight pinned stops and
+ * no nearby ones, and if all eight are a kilometre off the fold draws one row and
+ * no cards at all. A full array behind a board with nothing to tap is exactly the
+ * showing this guard exists to refuse. `[data-code]` is the same selector
+ * `renderShells` observes by, and skeleton cards deliberately carry no `data-code`
+ * — the wait is not a board either.
  */
 function maybeShowHint() {
   if (hintDecided) return;
@@ -780,7 +789,7 @@ function maybeShowHint() {
 
   const { show, record } = hintDecision({
     raw: readRaw(HINT_KEY),
-    boardHasCards: board.length > 0,
+    boardHasCards: el.board.querySelector('[data-code]') !== null,
   });
   if (!show) return;
 

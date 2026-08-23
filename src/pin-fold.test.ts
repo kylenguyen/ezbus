@@ -289,3 +289,26 @@ describe('pinned fold — the refresh it saves', () => {
     );
   });
 });
+
+describe('pinned fold — the coach hint it must not teach over', () => {
+  // The fold broke an equivalence the hint had rested on since it was written:
+  // that a non-empty `board` array means cards on screen. Eight pins is the
+  // `MAX_STOPS` cap, so /api/board answers with eight pinned stops and no nearby
+  // ones (see the truncation comment in src/index.ts); if all eight are a
+  // kilometre off, the fold draws one row and no cards, and the old
+  // `board.length > 0` showed "Tap a bus stop…" over a board with nothing to tap
+  // — burning one of the ten showings on it. `hintDecision` already refuses a
+  // cardless board; what was wrong was the answer app.js gave it.
+  it('counts the cards on screen rather than the board array', () => {
+    const hint = fn('maybeShowHint');
+    assert.match(
+      hint,
+      /boardHasCards: el\.board\.querySelector\('\[data-code\]'\) !== null/,
+      'the tip must be gated on a card actually being drawn',
+    );
+    assert.ok(
+      !hint.includes('board.length > 0'),
+      'board.length and cards on screen disagree on a folded board',
+    );
+  });
+});
