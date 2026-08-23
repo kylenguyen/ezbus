@@ -9,8 +9,7 @@
          Keep them in step with the token blocks at the top of styles.css. -->
     <meta name="theme-color" content="#e7ebe7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121715" media="(prefers-color-scheme: dark)" />
-    <meta name="description" content="Next buses at this Singapore bus stop, live from LTA, plus today's first and last bus." />
-    <!-- Server-injected meta. The four tags below are the replacement targets:
+    <!-- Server-injected meta. The six tags below are the replacement targets:
          `/stop/:code` in src/index.ts swaps each whole tag, by exact string
          match, for a per-stop version when the code is a known stop. The tokens
          are the generic tags themselves rather than `__STOP_TITLE__`-style
@@ -20,12 +19,13 @@
          canonical and stays out of the index. Edit one of these tags and its
          constant in src/index.ts in the same commit, or the injection silently
          stops. -->
-    <title>bus stop arrivals · ezbus</title>
-    <meta property="og:title" content="bus stop arrivals · ezbus" />
-    <meta property="og:description" content="Next buses now, live from LTA · first & last bus today" />
+    <title>bus stop timing · ezbus</title>
+    <meta property="og:title" content="bus stop timing · ezbus" />
+    <meta name="description" content="Live bus timing at this Singapore stop — next buses from LTA, plus today's first and last bus." />
+    <meta property="og:description" content="Live bus timing at this Singapore stop — next buses from LTA, plus today's first and last bus." />
     <meta property="og:url" content="https://ezbus.sg/stop" />
     <link rel="canonical" href="https://ezbus.sg/" />
-    <!-- Static additions, never replaced — injection only targets the four tags above. -->
+    <!-- Static additions, never replaced — injection only targets the six tags above. -->
     <meta property="og:site_name" content="ezbus" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_SG" />
@@ -120,7 +120,7 @@
 
       <!-- Nearby stops plus JSON-LD for a known stop; this generic sentence
            otherwise. stop.js never touches this section. -->
-      <section id="sp-nearby"><p class="card-msg">Looking for live bus arrival times? <a href="/">Open the ezbus board</a> to see every stop near you.</p></section>
+      <section id="sp-nearby"><p class="card-msg">Checking bus timing? <a href="/">Open the ezbus board</a> to see live arrivals at every stop near you.</p></section>
     </main>
 
     <footer class="footer">

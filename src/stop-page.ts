@@ -45,7 +45,7 @@ export const STOP_SCHED_TARGET = '<section id="sp-sched" aria-label="Today at th
 /** The generic invite to the board — the no-JS sentence for a shell served
  *  unreplaced. Known stops swap it for the nearby-stops block plus JSON-LD. */
 export const STOP_NEARBY_TARGET =
-  '<section id="sp-nearby"><p class="card-msg">Looking for live bus arrival times? <a href="/">Open the ezbus board</a> to see every stop near you.</p></section>';
+  '<section id="sp-nearby"><p class="card-msg">Checking bus timing? <a href="/">Open the ezbus board</a> to see live arrivals at every stop near you.</p></section>';
 
 // --- display formatting -------------------------------------------------------
 

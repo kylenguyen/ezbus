@@ -465,7 +465,7 @@ app.get('/sitemap.xml', (_req, res) => {
  * change under a running process, and a missing file should fail the boot, not
  * the ten-thousandth request.
  *
- * The four tag constants are the shell's own generic meta, verbatim: injection
+ * The six tag constants are the shell's own generic meta, verbatim: injection
  * works by exact-string replacement of a whole tag, so the file served
  * unreplaced (unknown code, or `express.static` fetching `/stop.html` directly)
  * is already valid generic HTML with no `__TOKEN__` text to leak into a tab
@@ -476,8 +476,12 @@ app.get('/sitemap.xml', (_req, res) => {
  * their builders in stop-page.ts, where a unit test pins them to the shell.
  */
 const STOP_SHELL = readFileSync(path.join(import.meta.dirname, '..', 'public', 'stop.html'), 'utf8');
-const STOP_TITLE_TAG = '<title>bus stop arrivals · ezbus</title>';
-const STOP_OG_TITLE_TAG = '<meta property="og:title" content="bus stop arrivals · ezbus" />';
+const STOP_TITLE_TAG = '<title>bus stop timing · ezbus</title>';
+const STOP_OG_TITLE_TAG = '<meta property="og:title" content="bus stop timing · ezbus" />';
+const STOP_DESC_TAG =
+  '<meta name="description" content="Live bus timing at this Singapore stop — next buses from LTA, plus today\'s first and last bus." />';
+const STOP_OG_DESC_TAG =
+  '<meta property="og:description" content="Live bus timing at this Singapore stop — next buses from LTA, plus today\'s first and last bus." />';
 const STOP_OG_URL_TAG = '<meta property="og:url" content="https://ezbus.sg/stop" />';
 const STOP_CANONICAL_TAG = '<link rel="canonical" href="https://ezbus.sg/" />';
 
@@ -522,7 +526,13 @@ app.get('/stop/:code', (req, res) => {
 
   let html = STOP_SHELL;
   if (stop) {
-    const title = escapeHtml(`${stop.code} · ${stop.description}, ${stop.roadName} · ezbus`);
+    const title = escapeHtml(
+      `bus stop ${stop.code} · ${stop.description}, ${stop.roadName} · live timing · ezbus`,
+    );
+    const description = escapeHtml(
+      `Live bus timing at bus stop ${stop.code} (${stop.description}, ${stop.roadName}): ` +
+        `next arrivals for every service, how full the bus is, and today's first & last bus.`,
+    );
     // Nearby links carry the stop-to-stop edges of the crawl graph. Self is
     // dropped from the over-fetched 7, and a 0,0 "unknown coordinate" stop
     // skips the block entirely rather than listing the neighbours of Null
@@ -537,6 +547,8 @@ app.get('/stop/:code', (req, res) => {
     html = html
       .replace(STOP_TITLE_TAG, `<title>${title}</title>`)
       .replace(STOP_OG_TITLE_TAG, `<meta property="og:title" content="${title}" />`)
+      .replace(STOP_DESC_TAG, `<meta name="description" content="${description}" />`)
+      .replace(STOP_OG_DESC_TAG, `<meta property="og:description" content="${description}" />`)
       .replace(
         STOP_OG_URL_TAG,
         `<meta property="og:url" content="https://ezbus.sg/stop/${stop.code}" />`,
