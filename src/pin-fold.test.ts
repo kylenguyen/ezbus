@@ -223,6 +223,20 @@ describe('pinned fold — the row’s look', () => {
     );
   });
 
+  // `.board` is `repeat(auto-fit, minmax(21rem, 1fr))` from 40rem up, so as an
+  // ordinary grid item the row shared an implicit row with the first card and a grid
+  // item's default `stretch` drew one line of copy at that card's full height — a
+  // column-tall dashed box on desktop. Spanning every column gives it a row of its
+  // own, sized to its content, which is the band-above-the-cards shape the coach tip
+  // already has. A single-column board never showed the bug and is unaffected.
+  it('takes a row of its own rather than a card slot', () => {
+    assert.match(
+      rule,
+      /grid-column: 1 \/ -1;/,
+      'the row must span the whole board, or the multi-column grid stretches it to a card’s height',
+    );
+  });
+
   it('marks the row with the pin’s own accent star', () => {
     assert.ok(appSource.includes('<span class="pin-fold-star" aria-hidden="true">★</span>'));
     assert.match(

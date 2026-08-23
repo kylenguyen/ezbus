@@ -1248,10 +1248,10 @@ input[type='search']::-webkit-search-cancel-button {
 
 /* --- the pinned fold ---
    The row the pinned cards step aside into when every one of them is a kilometre or
-   more from where the board is ranked from (`pinFold` in origin.js). It stands in the
-   board grid where those cards were, so it is built like a card and not like a
-   control bar: the same `--radius`, the same `--surface` face, the full width of the
-   column.
+   more from where the board is ranked from (`pinFold` in origin.js). It stands at the
+   top of the board grid where those cards were, so it is built like a card and not
+   like a control bar: the same `--radius`, the same `--surface` face, the full width
+   of the board.
 
    The edge is dashed and accent rather than solid and `--border`. Dashed because this
    is the one place on the board where something is deliberately *not* drawn, and a
@@ -1269,6 +1269,14 @@ input[type='search']::-webkit-search-cancel-button {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* Its own band across the whole board, above the cards — the same shape the coach
+     tip has one element up. Without this the row is an ordinary grid item, so at
+     40rem and up it shares an implicit row with the first card and a grid item's
+     default `stretch` pulls one line of copy to the height of a five-service card:
+     a column-tall dashed box beside the board. `1 / -1` puts it on a row of its own,
+     which sizes to its content at every width (in one column it is what already
+     happened). */
+  grid-column: 1 / -1;
   width: 100%;
   /* 2.75rem ≈ 44 px, and this row is the only way back to the pins. */
   min-height: 2.75rem;
