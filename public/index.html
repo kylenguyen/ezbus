@@ -199,6 +199,70 @@
         aria-label="Nearby bus stops"
         aria-describedby="tagline"
       ></section>
+
+      <!-- Inert static prose: nothing here is touched by app.js, the intro
+           dialog or the gate — plain <details> disclosure, no JS. Every answer
+           is mirrored VERBATIM in the FAQPage JSON-LD below (Google requires
+           the markup to match the visible page), so edit both together. -->
+      <section class="faq" aria-labelledby="faq-title">
+        <h2 class="faq-title" id="faq-title">Common questions</h2>
+        <details class="faq-item">
+          <summary>How accurate are the bus timings?</summary>
+          <p>Live estimates from LTA DataMall — the same source the official apps use — refreshed every 30 seconds while a stop is on screen. The final minute before arrival shows as "Arr".</p>
+        </details>
+        <details class="faq-item">
+          <summary>Where does the data come from?</summary>
+          <p>LTA DataMall, Singapore's official land transport data service, covering SBS Transit, SMRT, Tower Transit and Go-Ahead services.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Do I need an app or sign-up?</summary>
+          <p>No. ezbus is a website — open ezbus.sg in any browser, allow location or type an address, and your nearest stops appear. Nothing about you is stored on our servers.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Can I check the first and last bus?</summary>
+          <p>Yes — every bus stop page shows the scheduled first and last bus for each service on weekdays, Saturdays and Sundays.</p>
+        </details>
+      </section>
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "How accurate are the bus timings?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Live estimates from LTA DataMall — the same source the official apps use — refreshed every 30 seconds while a stop is on screen. The final minute before arrival shows as \"Arr\"."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Where does the data come from?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "LTA DataMall, Singapore's official land transport data service, covering SBS Transit, SMRT, Tower Transit and Go-Ahead services."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Do I need an app or sign-up?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. ezbus is a website — open ezbus.sg in any browser, allow location or type an address, and your nearest stops appear. Nothing about you is stored on our servers."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I check the first and last bus?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes — every bus stop page shows the scheduled first and last bus for each service on weekdays, Saturdays and Sundays."
+              }
+            }
+          ]
+        }
+      </script>
     </main>
 
     <footer class="footer">

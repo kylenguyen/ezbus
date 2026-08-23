@@ -1603,6 +1603,48 @@ input[type='search']::-webkit-search-cancel-button {
 
 /* --- footer --- */
 
+/* --- FAQ ---
+   Inert static prose between the board and the footer; app.js never touches it.
+   Raised-surface rule applies: each row carries the 1px `--border` because in
+   dark mode `--shadow` draws nothing and the border is its only edge. */
+.faq {
+  max-width: 46rem; /* the masthead/footer measure, so the rows line up with the board */
+  margin: 2rem auto 0;
+  width: 100%;
+}
+
+.faq-title {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.faq-item {
+  margin-top: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Kept `display: list-item` (the default) so the UA disclosure marker stays —
+   it is the only affordance saying these rows open. The padding alone puts the
+   row over the 2.75rem tap minimum. */
+.faq-item summary {
+  padding: 0.85rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.faq-item p {
+  margin: 0;
+  padding: 0 0.75rem 0.85rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 .footer {
   margin-top: auto; /* bottom of the viewport on a short page; see `body` */
   padding-top: 1.75rem;
