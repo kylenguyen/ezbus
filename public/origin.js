@@ -1294,3 +1294,93 @@ export function hintDecision({ raw, boardHasCards }) {
 export function dismissedHintRecord() {
   return { shown: HINT_MAX_SHOWINGS };
 }
+
+// --- the pinned-stop fold -------------------------------------------------
+
+/**
+ * How far the nearest pin has to be before the pins step aside into one row.
+ * A kilometre is past any walk a rider would make to catch a bus they can see
+ * timings for from where they are standing, so at that range the pinned cards
+ * are occupying the first screenful to answer a question nobody at this origin
+ * is asking.
+ */
+export const PIN_FOLD_M = 1000;
+
+/**
+ * And how near one has to come back before they unfold. The gap between the two
+ * is the whole point: a single threshold would flip the board's shape on every
+ * metre of GPS jitter around it, and re-ranking a board is the one moment the
+ * rider is reading it.
+ */
+export const PIN_UNFOLD_M = 800;
+
+/**
+ * Whether the pinned cards render in full, fold into one row, or are not there
+ * at all. All-or-nothing by design — two simultaneous pin representations on one
+ * board is complexity the mixed case does not earn — so this is the *nearest*
+ * pin's question, not each pin's.
+ *
+ * The ladder, in order, and the order is the content:
+ *
+ * 1. No pins at all is `'none'` rather than a fold state, so the caller never
+ *    has to ask "folded, but of what?" before deciding to draw a row.
+ * 2. **No evidence is `'expanded'`.** An unlocated board, or any pin the server
+ *    sent no usable `distanceM` for, keeps today's behaviour: hiding a card a
+ *    rider deliberately pinned is only defensible when we can say how far away
+ *    it is, and `undefined`, `null` and `NaN` all say nothing. Folding on a
+ *    guess would hide the pin a rider is standing next to.
+ * 3. Near, so expanded; far, so folded.
+ * 4. Inside the band, `previous` decides — that is the hysteresis, and it is why
+ *    the caller keeps the last answer. Anything else there, a first load
+ *    included, expands: the band's first sighting has no direction to hold, and
+ *    the benefit of the doubt belongs to the card the rider asked for.
+ *
+ * `located` is read as a literal `true`, the same reading `originsState` gives
+ * `geolocationSupported` — a caller that forgets the flag loses the fold, which
+ * is today's board, rather than folding pins away on an origin it cannot place.
+ *
+ * @param {{pinnedStops?: Array<{distanceM?: unknown}> | null, located?: unknown,
+ *   previous?: unknown}} input
+ * @returns {'none' | 'expanded' | 'folded'}
+ */
+export function pinFold({ pinnedStops, located, previous }) {
+  const pins = Array.isArray(pinnedStops) ? pinnedStops : [];
+  if (pins.length === 0) return 'none';
+
+  if (located !== true) return 'expanded';
+  const distances = pins.map((stop) => stop?.distanceM);
+  if (!distances.every((metres) => Number.isFinite(metres))) return 'expanded';
+
+  const nearest = Math.min(...distances);
+  if (nearest < PIN_UNFOLD_M) return 'expanded';
+  if (nearest >= PIN_FOLD_M) return 'folded';
+
+  return previous === 'folded' || previous === 'expanded' ? previous : 'expanded';
+}
+
+/**
+ * The folded row's two strings: what is behind it, and what the control does.
+ *
+ * The count and the distance are both on the row because between them they are
+ * the reason it is folded — a rider who pinned two stops and sees "2 pinned
+ * stops · 11 km away" has the whole explanation without opening anything.
+ * `formatMetres` renders the distance, so the row switches to kilometres at
+ * exactly the point every card on the board does.
+ *
+ * `action` is the label on the row itself, which stays put when the pins are
+ * showing and flips to `Hide`, so the way back is where the way in was. `open`
+ * is read for truthiness rather than compared to `true`: unlike the fold
+ * decision above, both readings of a forgotten argument land on `Show`, which is
+ * the state the row is in whenever nobody has pressed it.
+ *
+ * @param {number} count how many stops are pinned
+ * @param {unknown} nearestM the nearest pin's distance in metres
+ * @param {unknown} [open] whether the pinned cards are currently showing
+ * @returns {{label: string, action: string}}
+ */
+export function foldRowCopy(count, nearestM, open) {
+  return {
+    label: `${count} pinned stop${count === 1 ? '' : 's'} · ${formatMetres(nearestM)} away`,
+    action: open ? 'Hide' : 'Show',
+  };
+}

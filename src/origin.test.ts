@@ -2015,3 +2015,178 @@ describe('hint copy', () => {
     assert.equal(origin.HINT_MAX_SHOWINGS, 10);
   });
 });
+
+// --- the pinned-stop fold -------------------------------------------------
+//
+// T1 of docs/pinned-fold-plan.md. Appended rather than slotted in beside the
+// distance blocks above, per the note at the top of the file. Nothing in the
+// running app calls either function until T2 renders the row.
+
+describe('pinFold thresholds', () => {
+  // The gap between the two *is* the hysteresis, so both numbers are pinned
+  // rather than derived: a change that closed it would flip the board's shape on
+  // GPS jitter, and every hysteresis assertion below would still pass.
+  it('folds at a kilometre and unfolds at 800 m', () => {
+    assert.equal(origin.PIN_FOLD_M, 1000);
+    assert.equal(origin.PIN_UNFOLD_M, 800);
+    assert.ok(origin.PIN_UNFOLD_M < origin.PIN_FOLD_M);
+  });
+});
+
+describe('pinFold', () => {
+  const pin = (distanceM: unknown) => ({ code: '43179', distanceM });
+  const FAR = [pin(11_200), pin(12_000)];
+  const NEAR = [pin(60), pin(240)];
+
+  // `'none'` rather than a fold state, so the caller never has to ask "folded,
+  // but of what?" before deciding whether to draw a row.
+  it('answers none with no pins at all', () => {
+    assert.equal(origin.pinFold({ pinnedStops: [], located: true, previous: null }), 'none');
+    assert.equal(origin.pinFold({ pinnedStops: null, located: true, previous: 'folded' }), 'none');
+    assert.equal(origin.pinFold({ located: true, previous: 'folded' }), 'none');
+  });
+
+  // Decision 2 of the plan: the fold only ever acts on evidence. An unlocated
+  // board has no distances to be far from, so it keeps today's behaviour.
+  it('expands when the board is not located', () => {
+    assert.equal(origin.pinFold({ pinnedStops: FAR, located: false, previous: null }), 'expanded');
+    assert.equal(origin.pinFold({ pinnedStops: FAR, previous: 'folded' }), 'expanded');
+  });
+
+  // The same rule one field over, and the case a fixture of tidy pins does not
+  // contain: `/api/board` returns no `distanceM` for a pin when the request
+  // carried no coordinate, and a hand-edited or partly-failed board can carry
+  // one unknown among knowns. Hiding a pin we cannot place is the failure mode.
+  it('expands when any single pin has no usable distance', () => {
+    for (const unknown of [undefined, null, NaN, '900', Infinity]) {
+      assert.equal(
+        origin.pinFold({ pinnedStops: [pin(11_200), pin(unknown)], located: true, previous: null }),
+        'expanded',
+        `an unknown distance of ${String(unknown)} must not fold the pins`,
+      );
+    }
+    assert.equal(
+      origin.pinFold({ pinnedStops: [pin(11_200), null], located: true, previous: 'folded' }),
+      'expanded',
+    );
+  });
+
+  // First load, both directions, with nothing remembered: the decision comes
+  // from the distance alone, which is why a reload never needs the state T2
+  // keeps in memory.
+  it('decides a first load from the distance alone', () => {
+    assert.equal(origin.pinFold({ pinnedStops: NEAR, located: true, previous: null }), 'expanded');
+    assert.equal(origin.pinFold({ pinnedStops: FAR, located: true, previous: null }), 'folded');
+    assert.equal(origin.pinFold({ pinnedStops: FAR, located: true }), 'folded');
+  });
+
+  // All-or-nothing (decision 1): one pin within walking range expands every
+  // pin, including the one 12 km away. Two pin representations on one board is
+  // complexity the mixed case does not earn.
+  it('expands every pin when only one of them is near', () => {
+    assert.equal(
+      origin.pinFold({ pinnedStops: [pin(12_000), pin(60)], located: true, previous: 'folded' }),
+      'expanded',
+    );
+  });
+
+  // The band is where the two thresholds stop agreeing, and the answer there is
+  // "whatever the board is already doing". Impractical to walk in a browser, so
+  // these assertions are the only coverage the hysteresis has.
+  it('holds the previous decision inside the 800–1000 m band', () => {
+    for (const metres of [800, 900, 999]) {
+      assert.equal(
+        origin.pinFold({ pinnedStops: [pin(metres)], located: true, previous: 'folded' }),
+        'folded',
+      );
+      assert.equal(
+        origin.pinFold({ pinnedStops: [pin(metres)], located: true, previous: 'expanded' }),
+        'expanded',
+      );
+    }
+  });
+
+  // First sight of the band has no direction to hold, and the benefit of the
+  // doubt belongs to the card the rider asked for. `'none'` counts as no
+  // direction too: it is what the caller remembers from a board with no pins.
+  it('expands in the band when there is nothing to hold', () => {
+    for (const previous of [null, undefined, 'none', 'FOLDED', '', 0]) {
+      assert.equal(
+        origin.pinFold({ pinnedStops: [pin(900)], located: true, previous }),
+        'expanded',
+        `previous ${JSON.stringify(previous)} is not a decision to hold`,
+      );
+    }
+  });
+
+  // Both edges, and they are deliberately not the same shape: at 1000 m the
+  // fold takes over from the band, and at 800 m the band takes over from the
+  // unfold, so `previous` is the only thing that separates 800 from 799.
+  it('takes the thresholds at their exact boundaries', () => {
+    assert.equal(
+      origin.pinFold({ pinnedStops: [pin(1000)], located: true, previous: 'expanded' }),
+      'folded',
+    );
+    assert.equal(
+      origin.pinFold({ pinnedStops: [pin(799)], located: true, previous: 'folded' }),
+      'expanded',
+    );
+  });
+
+  // The two crossings, as a rider actually makes them: away from the pins until
+  // the board folds, then back until it opens again.
+  it('crosses the band in both directions', () => {
+    let state = origin.pinFold({ pinnedStops: NEAR, located: true, previous: null });
+    assert.equal(state, 'expanded');
+    for (const metres of [850, 950]) {
+      state = origin.pinFold({ pinnedStops: [pin(metres)], located: true, previous: state });
+      assert.equal(state, 'expanded', `walking out, ${metres} m must not fold on its own`);
+    }
+    state = origin.pinFold({ pinnedStops: [pin(1200)], located: true, previous: state });
+    assert.equal(state, 'folded');
+
+    // And back. The band now holds *folded* all the way down to 800, which a
+    // single threshold at 800 would not do — that is the whole hysteresis.
+    for (const metres of [950, 850]) {
+      state = origin.pinFold({ pinnedStops: [pin(metres)], located: true, previous: state });
+      assert.equal(state, 'folded', `walking back, ${metres} m must not unfold on its own`);
+    }
+    state = origin.pinFold({ pinnedStops: [pin(700)], located: true, previous: state });
+    assert.equal(state, 'expanded');
+  });
+});
+
+describe('foldRowCopy', () => {
+  // Verbatim, both numbers, because the row is the only thing on screen saying
+  // why the pinned cards are not: the count says what is behind it and the
+  // distance says why it is behind anything.
+  it('says how many pins and how far, singular and plural', () => {
+    assert.equal(origin.foldRowCopy(1, 11_200, false).label, '1 pinned stop · 11.2 km away');
+    assert.equal(origin.foldRowCopy(2, 11_200, false).label, '2 pinned stops · 11.2 km away');
+    assert.equal(origin.foldRowCopy(8, 11_200, false).label, '8 pinned stops · 11.2 km away');
+  });
+
+  // Through `formatMetres`, so the row switches to kilometres at exactly the
+  // point every card on the board does — one distance rendering, not two.
+  it('renders the distance the way the cards do, either side of a kilometre', () => {
+    assert.equal(origin.foldRowCopy(2, 950, false).label, '2 pinned stops · 950 m away');
+    assert.equal(origin.foldRowCopy(2, 11_000, false).label, '2 pinned stops · 11.0 km away');
+    for (const metres of [950, 11_000]) {
+      assert.ok(origin.foldRowCopy(2, metres, false).label.includes(origin.formatMetres(metres)));
+    }
+  });
+
+  // The row stays when opened and flips its label (decision 4), so the way back
+  // is where the way in was.
+  it('flips the action label without touching the rest of the row', () => {
+    const shut = origin.foldRowCopy(2, 950, false);
+    const open = origin.foldRowCopy(2, 950, true);
+    assert.equal(shut.action, 'Show');
+    assert.equal(open.action, 'Hide');
+    assert.equal(open.label, shut.label);
+  });
+
+  it('reads an absent open flag as the closed row', () => {
+    assert.equal(origin.foldRowCopy(2, 950).action, 'Show');
+  });
+});
