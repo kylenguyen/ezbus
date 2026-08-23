@@ -298,7 +298,7 @@ export function taglineFor(origin, mock) {
   // and is true either way. It stops naming LTA in mock mode because in mock mode
   // none of it came from LTA; the wording is what a rider needs to know about the
   // numbers, not what a deploy needs to know about its configuration.
-  return mock ? `${where} · demo timings, not live` : `${where}, live from LTA`;
+  return mock ? `${where} · demo timings, not live` : `${where} · live bus timing from LTA`;
 }
 
 /**

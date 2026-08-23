@@ -535,14 +535,14 @@ describe('shouldRelocateOnFocus', () => {
 
 describe('taglineFor', () => {
   it('says nearest you in gps mode', () => {
-    assert.equal(origin.taglineFor(GPS_RECORD), 'Stops nearest you, live from LTA');
+    assert.equal(origin.taglineFor(GPS_RECORD), 'Stops nearest you · live bus timing from LTA');
   });
 
   // Behind the intro and on the dismissal gate there is no board on screen, so
   // "stops nearest you" would describe something absent in a mode nothing has been
   // granted for — the claim `chipState` already refuses to make for the same state.
   it('claims no mode before a door is taken', () => {
-    assert.equal(origin.taglineFor(null), 'Any stop in Singapore, live from LTA');
+    assert.equal(origin.taglineFor(null), 'Any stop in Singapore · live bus timing from LTA');
     assert.equal(origin.taglineFor(null).includes('nearest you'), false);
   });
 
@@ -551,7 +551,7 @@ describe('taglineFor', () => {
   it('names the address in place mode', () => {
     assert.equal(
       origin.taglineFor(PLACE_RECORD),
-      'Stops near 155 Lorong 1 Toa Payoh, live from LTA',
+      'Stops near 155 Lorong 1 Toa Payoh · live bus timing from LTA',
     );
   });
 
@@ -575,7 +575,7 @@ describe('taglineFor', () => {
   it('reads an absent mock flag as live', () => {
     for (const record of [GPS_RECORD, PLACE_RECORD, null]) {
       assert.equal(origin.taglineFor(record), origin.taglineFor(record, false));
-      assert.match(origin.taglineFor(record), /live from LTA$/);
+      assert.match(origin.taglineFor(record), /live bus timing from LTA$/);
     }
   });
 
