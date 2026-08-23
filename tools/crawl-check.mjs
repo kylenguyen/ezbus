@@ -253,15 +253,15 @@ await eachLimit([...pages.entries()], FETCH_CONCURRENCY, async ([path, canonical
     const title = pageTitle(page.body);
     if (title === null) fail(`${path}: no <title>`);
     else if (!title.includes('bus timing')) fail(`${path}: <title> "${title}" does not contain "bus timing"`);
-    // Exactly one FAQPage JSON-LD block, parseable, with exactly 4 questions.
+    // Exactly one FAQPage JSON-LD block, parseable, with exactly 5 questions.
     const { parsed } = jsonLdBlocks(path, page.body);
     const faqBlocks = parsed.filter((block) => block['@type'] === 'FAQPage');
     if (faqBlocks.length !== 1) {
       fail(`${path}: expected exactly 1 FAQPage JSON-LD block, found ${faqBlocks.length}`);
     } else {
       const mainEntity = faqBlocks[0].mainEntity;
-      if (!Array.isArray(mainEntity) || mainEntity.length !== 4) {
-        fail(`${path}: FAQPage mainEntity has ${Array.isArray(mainEntity) ? mainEntity.length : 'no'} questions, expected exactly 4`);
+      if (!Array.isArray(mainEntity) || mainEntity.length !== 5) {
+        fail(`${path}: FAQPage mainEntity has ${Array.isArray(mainEntity) ? mainEntity.length : 'no'} questions, expected exactly 5`);
       }
     }
   }
