@@ -3104,3 +3104,58 @@ h2.rt-sec {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* --- route page: the picker's live line ---
+   "Next bus 74 from <first stop>" with up to three times, above "Where will
+   you board?". A plain card row in the board's ETA type: the lead time in the
+   accent (the "when does it come" family), the rest in body ink. It is an
+   answer, not a control, so nothing here is tappable. */
+.rt-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.rt-next-label {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.rt-next-times {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-next-eta {
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.rt-next-eta.lead {
+  color: var(--accent);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.rt-next-eta .eta-unit {
+  margin-left: 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.rt-next-msg {
+  color: var(--muted);
+  font-size: 0.82rem;
+}

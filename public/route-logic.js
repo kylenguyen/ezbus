@@ -583,6 +583,36 @@ export function filterServiceEta(entry, serviceNo) {
 }
 
 /**
+ * The picker's "next from the first stop" line, decided. A visitor who has not
+ * chosen a stop yet — most arrivals from a search — otherwise sees no live
+ * timing at all until they pick one; the route's first stop is the one place
+ * a live answer needs no choice, and it says whether the service is running.
+ *
+ * `failed` (the fetch or the stop failed) and `none` (it worked, nothing is
+ * coming) stay apart for the reason `filterServiceEta` gives. Up to three
+ * buses, in the order DataMall listed them, skipping any without a parseable
+ * timing; minutes are floored like the board's, and a timing already past
+ * reads 0 — the caller shows it as "Arr", as the anchor panel does.
+ *
+ * @param {Parameters<typeof filterServiceEta>[0]} entry
+ * @param {unknown} serviceNo
+ * @param {number} now epoch milliseconds — a parameter, never a clock read
+ * @returns {{state: 'failed'} | {state: 'none'} | {state: 'ok', minutes: number[]}}
+ */
+export function departureSummary(entry, serviceNo, now) {
+  const buses = filterServiceEta(entry, serviceNo);
+  if (buses === null) return { state: 'failed' };
+  const times = buses
+    .map((bus) =>
+      bus && typeof bus.estimatedArrival === 'string' ? Date.parse(bus.estimatedArrival) : NaN,
+    )
+    .filter(Number.isFinite)
+    .slice(0, 3);
+  if (times.length === 0) return { state: 'none' };
+  return { state: 'ok', minutes: times.map((at) => Math.max(0, Math.floor((at - now) / 60_000))) };
+}
+
+/**
  * Rises smaller than this are noise, not a bus: adjacent stops can report the
  * same vehicle a few seconds apart in opposite directions, and DataMall
  * refreshes per stop rather than atomically. Anything past 90 s is a genuinely

@@ -612,6 +612,58 @@ describe('filterServiceEta', () => {
   });
 });
 
+describe('departureSummary', () => {
+  const at = (mins: number) => new Date(NOW + mins * 60_000).toISOString();
+  const entry = (services: any) => ({ code: '10011', services });
+
+  it('gives up to three floored minutes for the service, in feed order', () => {
+    const summary = route.departureSummary(
+      entry([
+        { serviceNo: '61', buses: [{ estimatedArrival: at(1) }] },
+        {
+          serviceNo: '74',
+          buses: [
+            { estimatedArrival: at(3.9) },
+            { estimatedArrival: at(12) },
+            { estimatedArrival: at(20.5) },
+            { estimatedArrival: at(31) },
+          ],
+        },
+      ]),
+      '74',
+      NOW,
+    );
+    assert.deepEqual(summary, { state: 'ok', minutes: [3, 12, 20] });
+  });
+
+  it('reads a timing already past as 0, never negative', () => {
+    const summary = route.departureSummary(entry([{ serviceNo: '74', buses: [{ estimatedArrival: at(-2) }] }]), '74', NOW);
+    assert.deepEqual(summary, { state: 'ok', minutes: [0] });
+  });
+
+  it('skips buses without a parseable timing, and says none when nothing is left', () => {
+    const mixed = route.departureSummary(
+      entry([{ serviceNo: '74', buses: [{ estimatedArrival: null }, { estimatedArrival: 'soon' }, { estimatedArrival: at(7) }] }]),
+      '74',
+      NOW,
+    );
+    assert.deepEqual(mixed, { state: 'ok', minutes: [7] });
+    const empty = route.departureSummary(entry([{ serviceNo: '74', buses: [{ estimatedArrival: null }] }]), '74', NOW);
+    assert.deepEqual(empty, { state: 'none' });
+  });
+
+  it('keeps "nothing running" and "fetch failed" apart', () => {
+    assert.deepEqual(route.departureSummary(entry([]), '74', NOW), { state: 'none' });
+    assert.deepEqual(route.departureSummary(entry(null), '74', NOW), { state: 'failed' });
+    assert.deepEqual(route.departureSummary(null, '74', NOW), { state: 'failed' });
+  });
+
+  it('matches the service case-insensitively, as filterServiceEta does', () => {
+    const summary = route.departureSummary(entry([{ serviceNo: '972M', buses: [{ estimatedArrival: at(5) }] }]), '972m', NOW);
+    assert.deepEqual(summary, { state: 'ok', minutes: [5] });
+  });
+});
+
 describe('inferBusSegment', () => {
   // Lead timings in route order, furthest upstream first, anchor last.
   const eta = (secs: number, monitored = true): any => ({

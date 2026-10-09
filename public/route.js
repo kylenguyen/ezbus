@@ -22,6 +22,7 @@ import {
   arrivalsParams,
   BUS_POSITION_LABEL,
   busMarkPlacement,
+  departureSummary,
   directionFor,
   filterServiceEta,
   foldPlan,
@@ -96,6 +97,16 @@ let changeDirIndex = 0;
 let arrivalsByCode = new Map();
 /** Whether any arrivals batch has landed for the current window. */
 let arrivalsFresh = false;
+
+/**
+ * The picker's live line: the first stop of the direction on screen, its last
+ * /api/arrivals entry (null on failure), and whether anything has landed for
+ * that stop yet. Kept apart from the window's state above — the picker and the
+ * anchored window never show at once, but they must not share a batch.
+ */
+let nextCode = null;
+let nextEntry = null;
+let nextFresh = false;
 
 /**
  * What the picker list is showing, row for row. Written in the same synchronous
@@ -343,9 +354,14 @@ function currentWindow() {
 
 /**
  * One /api/arrivals batch — the anchor plus its ≤ 4 upstream stops, so a route
- * page costs one ≤ 5-code call per 30 s and the picker states cost zero.
+ * page costs one ≤ 5-code call per 30 s. The picker states spend one 1-code
+ * call per 30 s instead, on the live line (refreshNext), and route here to it.
  */
 async function refreshArrivals() {
+  if ((mode === 'picker' || mode === 'guard') && hat !== 'change') {
+    void refreshNext();
+    return;
+  }
   if (mode !== 'anchored' || document.visibilityState !== 'visible') return;
   const current = currentWindow();
   if (!current?.win) return;
@@ -364,6 +380,50 @@ async function refreshArrivals() {
   } catch {
     // Leave the last good timings on screen; the next tick tries again.
   }
+}
+
+/** The first stop of the direction on screen — the picker's live line's stop. */
+function nextStopCode() {
+  return route?.directions[dirIndex]?.stops[0]?.code ?? null;
+}
+
+/**
+ * The picker's live line: one /api/arrivals call for one code, the route's
+ * first stop. The only upstream cost the picker states have — the window's
+ * ≤ 5-code batch is not spent until a stop is chosen — and a terminus is
+ * shared by every visitor to the route, so the server's arrivals cache absorbs
+ * most of it. A response for a stop the picker has since left (direction
+ * toggled mid-flight) is dropped.
+ */
+async function refreshNext() {
+  if (document.visibilityState !== 'visible') return;
+  const code = nextStopCode();
+  if (!code) return;
+  if (code !== nextCode) {
+    nextCode = code;
+    nextEntry = null;
+    nextFresh = false;
+    renderNext();
+  }
+  const params = arrivalsParams([code]);
+  if (!params) return;
+  try {
+    const res = await fetch(`/api/arrivals?${params}`);
+    if (!res.ok) throw new Error(String(res.status));
+    const data = await res.json();
+    if (code !== nextCode) return;
+    nextEntry = (data.arrivals ?? []).find((entry) => entry.code === code) ?? null;
+    nextFresh = true;
+    stamp(data.fetchedAt);
+  } catch {
+    if (code !== nextCode) return;
+    // Keep a good answer through one bad refresh; with none, say so.
+    if (!nextFresh) {
+      nextEntry = null;
+      nextFresh = true;
+    }
+  }
+  renderNext();
 }
 
 // --- rendering ----------------------------------------------------------------
@@ -750,6 +810,7 @@ function renderPicker() {
 
   el.body.innerHTML = `
     ${guard}
+    ${hat === 'change' ? '' : nextLine(Date.now())}
     <p class="rt-sec">${heading}</p>
     <div class="rt-search">
       <label class="visually-hidden" for="rt-search">Search stops on this route</label>
@@ -765,6 +826,47 @@ function renderPicker() {
   const input = el.body.querySelector('#rt-search');
   if (input && held) input.value = held;
   renderPickerList();
+  // First render of the picker, or a direction toggle onto another first
+  // stop: ask now rather than on the next 30 s tick.
+  if (hat !== 'change' && nextStopCode() !== nextCode) void refreshNext();
+}
+
+/**
+ * The live line above the picker: "Next from <first stop>" and up to three
+ * times. Pulses until the first answer lands, then the honest state — the
+ * same "Timings unavailable" / "No buses at this hour" pair the anchor panel
+ * uses. `aria-live` so a screen reader hears the answer arrive.
+ */
+function nextLine(now) {
+  const origin = route?.directions[dirIndex]?.origin?.description ?? '';
+  let times;
+  if (!nextFresh || nextCode !== nextStopCode()) {
+    times = '<span class="sk sk-eta skeleton" aria-hidden="true"></span>';
+  } else {
+    const summary = departureSummary(nextEntry, serviceNo, now);
+    times =
+      summary.state === 'failed'
+        ? '<span class="rt-next-msg">Timings unavailable — will retry</span>'
+        : summary.state === 'none'
+          ? '<span class="rt-next-msg">No buses at this hour</span>'
+          : summary.minutes
+              .map((mins, index) =>
+                mins <= 0
+                  ? `<span class="rt-next-eta${index === 0 ? ' lead' : ''}">Arr</span>`
+                  : `<span class="rt-next-eta${index === 0 ? ' lead' : ''}">${mins}<span class="eta-unit">min</span></span>`,
+              )
+              .join('');
+  }
+  return `<div class="rt-next" id="rt-next" aria-live="polite">
+      <span class="rt-next-label">Next bus ${escape(serviceNo)} from ${escape(origin)}</span>
+      <span class="rt-next-times">${times}</span>
+    </div>`;
+}
+
+/** The live line redrawn in place, so the search box keeps its focus. */
+function renderNext() {
+  const node = el.body.querySelector('#rt-next');
+  if (node) node.outerHTML = nextLine(Date.now());
 }
 
 /**
@@ -1153,6 +1255,7 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => void refreshArrivals(), REFRESH_MS);
 setInterval(() => {
   if (mode === 'anchored' && arrivalsFresh) renderBody();
+  else if ((mode === 'picker' || mode === 'guard') && nextFresh) renderNext();
 }, TICK_MS);
 
 // --- boot ------------------------------------------------------------------------------
