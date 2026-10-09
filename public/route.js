@@ -794,12 +794,12 @@ function renderPickerList() {
     list.innerHTML = stops
       .map((stop, index) => {
         if (index === currentIdx) {
-          return `<li class="here pick" data-pick="${index}">
-            <span class="cur-tag">current</span><strong>${escape(stop.description)}</strong></li>`;
+          return `<li class="here pick" data-pick="${index}"><a class="pick-link" href="${pickHref(stop)}" rel="nofollow">
+            <span class="cur-tag">current</span><strong>${escape(stop.description)}</strong></a></li>`;
         }
         const term = index === 0 || index === stops.length - 1 ? ' term' : '';
-        return `<li class="pick${term}" data-pick="${index}">
-          <span class="chev">›</span>${escape(stop.description)}</li>`;
+        return `<li class="pick${term}" data-pick="${index}"><a class="pick-link" href="${pickHref(stop)}" rel="nofollow">
+          <span class="chev">›</span>${escape(stop.description)}</a></li>`;
       })
       .join('');
     note.textContent = 'Tap your stop to watch the bus approach it.';
@@ -832,13 +832,25 @@ function renderPickerList() {
       ]
         .filter(Boolean)
         .join(' · ');
-      return `<li class="pick" data-pick="${index}">
+      return `<li class="pick" data-pick="${index}"><a class="pick-link" href="${pickHref(stop)}" rel="nofollow">
         <span class="r-name">${highlight(stop.description, range('description'))}</span>
         <span class="r-sub">${sub}</span>
-      </li>`;
+      </a></li>`;
     })
     .join('');
   note.textContent = 'Matches stop name, code, or road. Tap to anchor.';
+}
+
+/**
+ * The URL a picker row stands for: this route, anchored at that stop — exactly
+ * what a tap commits, so a long-press "open in new tab" or a copied link lands
+ * where the tap would. A real link rather than a bare <li>, so the rows are
+ * reachable from a keyboard and announced as actionable. `rel="nofollow"` on
+ * each: the stops are already linked for crawlers in #rt-static, and these
+ * ?stop= variants all canonicalise to /bus/:service anyway.
+ */
+function pickHref(stop) {
+  return `/bus/${encodeURIComponent(serviceNo)}?stop=${encodeURIComponent(stop.code)}`;
 }
 
 /**
@@ -1112,6 +1124,11 @@ function onAction(event) {
 
   const pick = event.target.closest('[data-pick]');
   if (pick) {
+    // A modified click (new tab, new window) is the browser's to handle — the
+    // row's href already says where it goes. A plain one anchors in place,
+    // which is the same destination without a page load.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
     const stop = pickRows[Number(pick.dataset.pick)];
     if (stop) anchorPicked(stop);
   }

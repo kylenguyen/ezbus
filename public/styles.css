@@ -2272,12 +2272,33 @@ a.card-link {
 
 /* Picker rows: every stop a tap target. The chevron is the affordance. */
 .spine li.pick {
-  padding-top: 0.55rem;
-  padding-bottom: 0.55rem;
+  padding-top: 0;
+  padding-bottom: 0;
   min-height: 2.75rem;
   display: flex;
   align-items: center;
   cursor: pointer;
+}
+
+/* Every picker row (spine and search results) is a real link to
+   ?stop=<code> — keyboard-reachable, and long-press opens the anchored route.
+   The link is the full row and carries the row's vertical padding, so the
+   whole 44px line is the target; the li keeps the spine's rail and node. */
+.pick-link {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.55rem 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.pick-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius);
 }
 
 /* Flex on `.pick` opts out of the float layout, so the chevron rides the
@@ -2480,13 +2501,14 @@ a.card-link {
 }
 
 .rt-results li {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0.55rem 0.7rem;
   font-size: 0.9rem;
   cursor: pointer;
+}
+
+.rt-results .pick-link {
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
 }
 
 .rt-results li + li {

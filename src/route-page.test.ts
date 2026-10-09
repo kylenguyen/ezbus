@@ -675,6 +675,21 @@ describe('route page heading and title invariants', () => {
     assert.ok(missing.slice(0, 400).includes('dropStatic();'), 'that caller must be renderMissing');
   });
 
+  // Picker rows were bare <li>s with a click handler: unreachable from a
+  // keyboard and not announced as actionable. Every row kind is now a link.
+  it('route.js renders every picker row kind as a nofollow link to ?stop=', () => {
+    const links = script.match(/<a class="pick-link" href="\$\{pickHref\(stop\)\}" rel="nofollow">/g) ?? [];
+    assert.equal(links.length, 3, 'current row, spine row and search result');
+    assert.ok(script.includes('return `/bus/${encodeURIComponent(serviceNo)}?stop=${encodeURIComponent(stop.code)}`;'));
+  });
+
+  it('route.js leaves modified clicks on a picker row to the browser', () => {
+    const handler = script.slice(script.indexOf("const pick = event.target.closest('[data-pick]');"));
+    const guard = handler.indexOf('event.metaKey || event.ctrlKey');
+    const prevent = handler.indexOf('event.preventDefault();');
+    assert.ok(guard > 0 && prevent > guard, 'the modifier check must run before preventDefault');
+  });
+
   // Google indexes the rendered DOM: a boot-time document.title would replace
   // the injected keyword title for every crawl of every route.
   it('route.js only names the tab when the server did not', () => {
