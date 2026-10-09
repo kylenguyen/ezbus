@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-import { BUSES_LIST_TARGET, buildBusesIndex, type BusesRow } from './buses-page.js';
+import { BUSES_LIST_TARGET, buildBusesIndex, busRange, type BusesRow } from './buses-page.js';
 
 /**
  * The /buses directory, pinned by hand-written fixtures — the same bargain as
@@ -31,7 +31,7 @@ describe('buildBusesIndex', () => {
   const html = buildBusesIndex(FLEET);
 
   it('renders one linked row per service', () => {
-    assert.equal((html.match(/<li>/g) ?? []).length, 4);
+    assert.equal((html.match(/<li[ >]/g) ?? []).length, 4);
     for (const service of FLEET) {
       assert.ok(html.includes(`href="/bus/${service.serviceNo}"`), `missing /bus/${service.serviceNo}`);
     }
@@ -56,8 +56,9 @@ describe('buildBusesIndex', () => {
     assert.ok(bare.includes('<span class="nb-name">⟲ Loop at Blk 101</span>'));
   });
 
-  it('trails the operator, and omits the span when the feed gave none', () => {
-    assert.ok(html.includes('<span class="nb-sub">SMRT</span>'));
+  it('trails the operator by the name riders know, and omits the span when the feed gave none', () => {
+    assert.ok(html.includes('<span class="nb-sub">SMRT Buses</span>'));
+    assert.ok(html.includes('<span class="nb-sub">SBS Transit</span>'));
     const anon = buildBusesIndex([row({ serviceNo: '74', operator: '' })]);
     assert.ok(!anon.includes('nb-sub'));
   });
@@ -84,6 +85,37 @@ describe('buildBusesIndex', () => {
 
   it('collapses to the shell\'s own generic section for empty input', () => {
     assert.equal(buildBusesIndex([]), BUSES_LIST_TARGET);
+  });
+
+  it('puts a jump bar of number ranges above the list, each linking its first row', () => {
+    assert.ok(
+      html.includes(
+        '<nav class="bus-jump" aria-label="Jump to bus numbers"><a href="#from-1">1–99</a><a href="#from-100">100–199</a><a href="#from-900">900–999</a></nav>',
+      ),
+    );
+    assert.ok(html.includes('<li id="from-1"><a href="/bus/52">'));
+    assert.ok(html.includes('<li><a href="/bus/74">'), 'only the first row of a range is anchored');
+    assert.ok(html.includes('<li id="from-100"><a href="/bus/167">'));
+    assert.ok(html.indexOf('class="bus-jump"') < html.indexOf('<ul'));
+  });
+
+  it('never repeats an anchor id, even for rows out of directory order', () => {
+    const shuffled = buildBusesIndex([row({ serviceNo: '74' }), row({ serviceNo: '167' }), row({ serviceNo: '52' })]);
+    assert.equal((shuffled.match(/id="from-1"/g) ?? []).length, 1);
+  });
+
+  it('leaves the bar out when every service sits in one range', () => {
+    assert.ok(!buildBusesIndex([row({ serviceNo: '52' }), row({ serviceNo: '74' })]).includes('bus-jump'));
+  });
+});
+
+describe('busRange', () => {
+  it('groups by leading digits: 1–99, then hundreds, then Others', () => {
+    assert.deepEqual(busRange('2'), { id: 'from-1', label: '1–99' });
+    assert.deepEqual(busRange('99'), { id: 'from-1', label: '1–99' });
+    assert.deepEqual(busRange('100'), { id: 'from-100', label: '100–199' });
+    assert.deepEqual(busRange('972M'), { id: 'from-900', label: '900–999' });
+    assert.deepEqual(busRange('NR7'), { id: 'from-other', label: 'Others' });
   });
 });
 

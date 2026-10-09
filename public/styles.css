@@ -3220,3 +3220,36 @@ h2.rt-sec {
 .ih-dismiss {
   color: var(--muted);
 }
+
+/* /buses jump bar: number ranges as a wrap of 44px chips between the heading
+   plate and the list. Accent text, as every other in-page link control here. */
+.bus-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.bus-jump a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+
+.bus-jump a:active {
+  background: var(--surface-2);
+}
+
+/* Anchored rows land below the top edge rather than flush against it. */
+.bus-index li[id] {
+  scroll-margin-top: 0.75rem;
+}

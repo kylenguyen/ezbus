@@ -1,3 +1,4 @@
+import { operatorName } from './route-page.js';
 import { escapeHtml } from './stop-page.js';
 
 /**
@@ -44,6 +45,21 @@ export interface BusesRow {
 }
 
 /**
+ * Which jump-bar range a service belongs to, by its leading digits: `1–99`,
+ * then one range per hundred, then `Others` for the few with no numeric
+ * prefix (`NR7`), which `compareServiceNos` already sorts last. The id is
+ * the in-page anchor the bar links to.
+ */
+export const busRange = (serviceNo: string): { id: string; label: string } => {
+  const digits = /^\d+/.exec(serviceNo);
+  if (!digits) return { id: 'from-other', label: 'Others' };
+  const n = Number(digits[0]);
+  if (n < 100) return { id: 'from-1', label: '1–99' };
+  const start = Math.floor(n / 100) * 100;
+  return { id: `from-${start}`, label: `${start}–${start + 99}` };
+};
+
+/**
  * The whole fleet as one card of 44px link rows: service number in the stencil
  * face (the same argument as `.service-no` on the board — this number is
  * matched against the blind on the front of the bus), endpoints or the loop
@@ -53,6 +69,10 @@ export interface BusesRow {
  */
 export const buildBusesIndex = (rows: BusesRow[]): string => {
   if (rows.length === 0) return BUSES_LIST_TARGET;
+  // ~370 rows is a long scroll on a phone for someone who knows their number;
+  // the jump bar gets them within a screen of it in one tap. Ranges, not
+  // operators: a rider knows the number on the blind, rarely who runs it.
+  const ranges: Array<{ id: string; label: string }> = [];
   const items = rows
     .map((row) => {
       const no = escapeHtml(row.serviceNo);
@@ -62,10 +82,24 @@ export const buildBusesIndex = (rows: BusesRow[]): string => {
           ? `${escapeHtml(row.origin)} → ${escapeHtml(row.destination)}`
           : '';
       const name = summary ? `<span class="nb-name">${summary}</span>` : '';
-      const operator = row.operator ? `<span class="nb-sub">${escapeHtml(row.operator)}</span>` : '';
-      return `<li><a href="/bus/${no}"><span class="service-no">${no}</span>${name}${operator}</a></li>`;
+      const operator = row.operator
+        ? `<span class="nb-sub">${escapeHtml(operatorName(row.operator))}</span>`
+        : '';
+      const range = busRange(row.serviceNo);
+      // First row of each range carries the anchor. Checked against every
+      // range seen, not just the last, so an id can never repeat even if a
+      // caller hands rows over out of directory order.
+      const opens = !ranges.some((seen) => seen.id === range.id);
+      if (opens) ranges.push(range);
+      return `<li${opens ? ` id="${range.id}"` : ''}><a href="/bus/${no}"><span class="service-no">${no}</span>${name}${operator}</a></li>`;
     })
     .join('');
+  const jump =
+    ranges.length < 2
+      ? ''
+      : `<nav class="bus-jump" aria-label="Jump to bus numbers">` +
+        ranges.map((range) => `<a href="#${range.id}">${range.label}</a>`).join('') +
+        `</nav>`;
   return (
     `<section id="buses-list" aria-label="All bus services in Singapore">` +
     `<div class="card rt-dir">` +
@@ -73,6 +107,7 @@ export const buildBusesIndex = (rows: BusesRow[]): string => {
     `<h2 class="rt-dir-head">All bus services in Singapore</h2>` +
     `<p class="rt-dir-meta">${rows.length} services · tap one for its route and live timings</p>` +
     `</div></div>` +
+    jump +
     `<ul class="rt-stops bus-index">${items}</ul>` +
     `</div>` +
     `</section>`
