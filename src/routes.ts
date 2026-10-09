@@ -1,7 +1,7 @@
 import { config, mockMode } from './config.js';
 import { fetchAllRoutes, fetchAllServices } from './lta.js';
 import { mockRoutes, mockServiceInfo } from './mock.js';
-import type { RouteStop, RouteStopTimes, ServiceInfo, StopService } from './types.js';
+import type { RouteStop, RouteStopTimes, ServiceFreq, ServiceInfo, StopService } from './types.js';
 
 /** One direction of a service's journey, ready for the route page to render. */
 export interface RouteDirection {
@@ -18,6 +18,13 @@ export interface RouteDirection {
    */
   firstBus: RouteStopTimes | null;
   lastBus: RouteStopTimes | null;
+  /**
+   * The last record's `Distance` — how far the bus travels end to end, in km.
+   * Null when that record carries none: the length is a fact the route page
+   * states, so a guess (the largest distance seen, say) would be worse than
+   * saying nothing.
+   */
+  lengthKm: number | null;
 }
 
 export interface RouteService {
@@ -27,6 +34,10 @@ export interface RouteService {
   loop: boolean;
   /** Where a loop turns; empty string for a normal two-direction service. */
   loopDesc: string;
+  /** DataMall `Category` (TRUNK, FEEDER, …); empty without a BusServices record. */
+  category: string;
+  /** AM headways from BusServices; both null without a record. */
+  freq: ServiceFreq;
   directions: Map<1 | 2, RouteDirection>;
 }
 
@@ -120,10 +131,12 @@ export const buildRoutes = (routeStops: RouteStop[], services: ServiceInfo[]): B
       records.sort((a, b) => a.seq - b.seq);
       serviceNo = records[0]?.serviceNo ?? serviceNo;
       const first = records.find((record) => record.seq === 1);
+      const lastDistance = records[records.length - 1]?.distanceKm;
       directions.set(direction, {
         stops: records.map((record) => record.code),
         firstBus: first?.firstBus ?? null,
         lastBus: first?.lastBus ?? null,
+        lengthKm: lastDistance === undefined ? null : lastDistance,
       });
 
       // The reverse index reads every record's schedule — unlike the direction
@@ -153,7 +166,15 @@ export const buildRoutes = (routeStops: RouteStop[], services: ServiceInfo[]): B
     const loopDesc = info?.loopDesc ?? '';
     const loop = info ? loopDesc !== '' : directions.size === 1;
 
-    index.set(key, { serviceNo, operator: info?.operator ?? '', loop, loopDesc, directions });
+    index.set(key, {
+      serviceNo,
+      operator: info?.operator ?? '',
+      loop,
+      loopDesc,
+      category: info?.category ?? '',
+      freq: info?.freq ?? { peak: null, offpeak: null },
+      directions,
+    });
   }
 
   const stopServices = new Map<string, StopService[]>();

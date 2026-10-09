@@ -159,6 +159,8 @@ export const MOCK_ROUTES: RouteStop[] = ROUTE_SHAPES.flatMap(({ serviceNo, direc
         code,
         firstBus: firstLast(5 * 60 + 30 + (seed % 30) + i * 2),
         lastBus: firstLast(23 * 60 + (seed % 45) + i * 2),
+        // ~0.6 km between consecutive stops, so the route page has a length.
+        distanceKm: Math.round(i * 6) / 10,
       };
     }),
   ),

@@ -35,8 +35,10 @@ const { mockRoutes, mockServiceInfo } = await import('./mock.js');
  * `2330`), and `-` day-types that must not erase the other direction's times.
  */
 const ROUTE_FEED = [
-  // 972M direction 1, shuffled: 3, 1, 2.
-  { ServiceNo: '972M', Direction: 1, StopSequence: 3, BusStopCode: '44229' },
+  // 972M direction 1, shuffled: 3, 1, 2. Distance on the last stop only would
+  // do, but the real feed carries it on every record — and the length must
+  // come from the *last* one, not the largest or the first.
+  { ServiceNo: '972M', Direction: 1, StopSequence: 3, BusStopCode: '44229', Distance: 2.4 },
   {
     ServiceNo: '972M',
     Direction: 1,
@@ -207,6 +209,30 @@ describe('RouteIndex first/last bus', () => {
     const direction = index.get('972M')?.directions.get(2);
     assert.equal(direction?.firstBus, null);
     assert.equal(direction?.lastBus, null);
+  });
+});
+
+describe('RouteIndex length, category and headway', () => {
+  it('takes the direction length from the last record\'s Distance', () => {
+    assert.equal(index.get('972M')?.directions.get(1)?.lengthKm, 2.4);
+  });
+
+  it('is null when the last record carries no Distance', () => {
+    assert.equal(index.get('972M')?.directions.get(2)?.lengthKm, null);
+    assert.equal(index.get('359')?.directions.get(1)?.lengthKm, null);
+  });
+
+  it('carries Category and the AM headways from BusServices', () => {
+    const service = index.get('972M');
+    assert.equal(service?.category, 'TRUNK');
+    assert.deepEqual(service?.freq, { peak: '06-08', offpeak: '10-15' });
+    assert.deepEqual(index.get('359')?.freq, { peak: null, offpeak: null });
+  });
+
+  it('falls back to empty category and null headways without a BusServices record', () => {
+    const service = index.get('825');
+    assert.equal(service?.category, '');
+    assert.deepEqual(service?.freq, { peak: null, offpeak: null });
   });
 });
 

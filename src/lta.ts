@@ -314,6 +314,7 @@ interface RawRoute {
   Direction?: number | string;
   StopSequence?: number | string;
   BusStopCode?: string;
+  Distance?: number | string;
   WD_FirstBus?: string;
   WD_LastBus?: string;
   SAT_FirstBus?: string;
@@ -349,6 +350,12 @@ const toRouteStop = (raw: RawRoute): RouteStop | null => {
   if (!serviceNo || !code || (direction !== 1 && direction !== 2) || !Number.isFinite(seq)) {
     return null;
   }
+  // `Number('')` and `Number(null)` are 0, which would read as "this stop is
+  // the start of the route" — so absence is decided before the conversion.
+  const distance =
+    raw.Distance === undefined || raw.Distance === null || String(raw.Distance).trim() === ''
+      ? NaN
+      : Number(raw.Distance);
   return {
     serviceNo,
     direction,
@@ -356,6 +363,7 @@ const toRouteStop = (raw: RawRoute): RouteStop | null => {
     code,
     firstBus: toTimes(raw.WD_FirstBus, raw.SAT_FirstBus, raw.SUN_FirstBus),
     lastBus: toTimes(raw.WD_LastBus, raw.SAT_LastBus, raw.SUN_LastBus),
+    ...(Number.isFinite(distance) && distance >= 0 ? { distanceKm: distance } : {}),
   };
 };
 

@@ -57,6 +57,12 @@ export interface RouteStop {
   code: string;
   firstBus?: RouteStopTimes;
   lastBus?: RouteStopTimes;
+  /**
+   * DataMall `Distance`: kilometres travelled from the direction's first stop
+   * to this one. Absent when the feed omits it or sends something that is not
+   * a non-negative number — a missing length is shown as nothing, never as 0.
+   */
+  distanceKm?: number;
 }
 
 /**

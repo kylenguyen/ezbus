@@ -180,8 +180,42 @@ describe('field mapping', () => {
           code: '01219',
           firstBus: { wd: '2025', sat: '1427', sun: '0620' },
           lastBus: { wd: '2352', sat: '2349', sun: '2349' },
+          distanceKm: 10.3,
         },
       ]);
+    } finally {
+      restore();
+    }
+  });
+
+  it('maps Distance only when it is a non-negative number — never a fake 0', async () => {
+    const record = (seq: number, Distance: unknown) => ({
+      ServiceNo: '61',
+      Direction: 1,
+      StopSequence: seq,
+      BusStopCode: String(84000 + seq),
+      Distance,
+    });
+    servePages([
+      [
+        record(1, 0),
+        record(2, '12.5'),
+        record(3, ''),
+        record(4, null),
+        record(5, -1),
+        record(6, 'n/a'),
+        { ServiceNo: '61', Direction: 1, StopSequence: 7, BusStopCode: '84007' },
+      ],
+    ]);
+
+    try {
+      const routes = await fetchAllRoutes();
+      assert.deepEqual(
+        routes.map((route) => route.distanceKm),
+        [0, 12.5, undefined, undefined, undefined, undefined, undefined],
+      );
+      // Absent means absent: no `distanceKm: undefined` key either.
+      assert.ok(!('distanceKm' in (routes[2] ?? {})));
     } finally {
       restore();
     }
