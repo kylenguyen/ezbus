@@ -6,6 +6,7 @@ import {
   ROUTE_HEAD_TARGET,
   ROUTE_STATIC_TARGET,
   buildKeyStops,
+  buildRelated,
   buildRouteDescription,
   buildRouteFacts,
   buildRouteHead,
@@ -14,9 +15,11 @@ import {
   freqLine,
   keyStops,
   operatorName,
+  rankRelated,
   buildRouteJsonLd,
   buildRouteStatic,
 } from './route-page.js';
+import { compareServiceNos } from './routes.js';
 import type { RouteDirectionPayload, RouteStopJoined } from './types.js';
 
 /**
@@ -388,6 +391,54 @@ describe('keyStops', () => {
     assert.ok(html.includes('<a href="/stop/10001"><span class="nb-name">A&lt;b&gt; Stn</span><span class="nb-sub">Opp A&lt;b&gt; Stn</span></a>'));
     assert.ok(html.includes('<span class="nb-name">Toa Payoh Int</span><span class="nb-sub">Bus interchange</span>'));
     assert.equal(buildKeyStops('74', []), '');
+  });
+});
+
+describe('rankRelated', () => {
+  // 74 calls at 10011, 10019, 10021, 10029 (direction 2 repeats two of them).
+  const d1 = direction(1, ['10011', '10019', '10021', '10029'].map((code, i) => joined(code, i + 1, code, 'Rd')));
+  const d2 = direction(2, ['10029', '10011'].map((code, i) => joined(code, i + 1, code, 'Rd')));
+  const at: Record<string, string[]> = {
+    '10011': ['74', '151', '10', '963'],
+    '10019': ['74', '151', '10'],
+    '10021': ['74', '151', '2'],
+    // A service listed twice at one stop (both its directions) counts once.
+    '10029': ['74', '151', '151', '2', '963E'],
+  };
+  const servicesAt = (code: string) => at[code] ?? [];
+
+  it('ranks by distinct shared stops, never counting the service itself', () => {
+    assert.deepEqual(rankRelated('74', [d1, d2], servicesAt, compareServiceNos), [
+      { serviceNo: '151', shared: 4 },
+      { serviceNo: '2', shared: 2 },
+      { serviceNo: '10', shared: 2 },
+    ]);
+  });
+
+  it('drops services sharing a single stop — a junction, not a parallel route', () => {
+    const ranked = rankRelated('74', [d1, d2], servicesAt, compareServiceNos);
+    assert.ok(!ranked.some((entry) => entry.serviceNo === '963' || entry.serviceNo === '963E'));
+  });
+
+  it('matches itself case-insensitively and caps the list at six', () => {
+    const crowd = Object.fromEntries(
+      ['10011', '10019'].map((code) => [code, ['972m', ...Array.from({ length: 9 }, (_, i) => String(100 + i))]]),
+    );
+    const ranked = rankRelated('972M', [d1], (code) => crowd[code] ?? [], compareServiceNos);
+    assert.equal(ranked.length, 6);
+    assert.ok(!ranked.some((entry) => entry.serviceNo.toUpperCase() === '972M'));
+    assert.deepEqual(ranked.map((entry) => entry.serviceNo), ['100', '101', '102', '103', '104', '105']);
+  });
+
+  it('renders linked rows in the directory idiom, and nothing without rows', () => {
+    const html = buildRelated([{ serviceNo: '151', shared: 4, summary: 'A <x> → B' }]);
+    assert.ok(html.includes('<h2 class="rt-sec">Other buses along this route</h2>'));
+    assert.ok(
+      html.includes(
+        '<li><a href="/bus/151"><span class="service-no">151</span><span class="nb-name">A &lt;x&gt; → B</span><span class="nb-sub">4 stops in common</span></a></li>',
+      ),
+    );
+    assert.equal(buildRelated([]), '');
   });
 });
 

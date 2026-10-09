@@ -280,6 +280,79 @@ export const buildKeyStops = (serviceNo: string, stops: KeyStop[]): string => {
   );
 };
 
+// --- other buses along the route ----------------------------------------------------
+
+/** Another service that shares stops with this one. */
+export interface RelatedService {
+  serviceNo: string;
+  /** Distinct stop codes the two have in common, across both directions. */
+  shared: number;
+}
+
+const RELATED_MIN_SHARED = 2;
+const RELATED_MAX = 6;
+
+/**
+ * The services that run alongside this one, ranked by how many distinct stops
+ * they share — the "is there another bus I could take" answer, and the
+ * route-to-route edges of the crawl graph. `servicesAt` is the stop page's own
+ * reverse index (`routes.servicesAt`), passed in so this stays pure.
+ *
+ * A single shared stop is an interchange or a busy junction, not a parallel
+ * route, so two is the floor. Ties go to bus-directory order via `compare`, so
+ * the list is stable across requests.
+ */
+export const rankRelated = (
+  serviceNo: string,
+  directions: RouteDirectionPayload[],
+  servicesAt: (code: string) => string[],
+  compare: (a: string, b: string) => number,
+): RelatedService[] => {
+  const self = serviceNo.toUpperCase();
+  const codes = new Set(directions.flatMap((direction) => direction.stops.map((stop) => stop.code)));
+  const counts = new Map<string, { serviceNo: string; shared: number }>();
+  for (const code of codes) {
+    // A service listed twice at one stop (both directions) counts once there.
+    const here = new Set(servicesAt(code));
+    for (const other of here) {
+      const key = other.toUpperCase();
+      if (key === self) continue;
+      const entry = counts.get(key) ?? { serviceNo: other, shared: 0 };
+      entry.shared += 1;
+      counts.set(key, entry);
+    }
+  }
+  return [...counts.values()]
+    .filter((entry) => entry.shared >= RELATED_MIN_SHARED)
+    .sort((a, b) => b.shared - a.shared || compare(a.serviceNo, b.serviceNo))
+    .slice(0, RELATED_MAX);
+};
+
+/** One related row, its endpoints already resolved by the caller. */
+export interface RelatedRow extends RelatedService {
+  /** "A → B" or "⟲ Loop at X" — plain text, escaped here. Empty if unknown. */
+  summary: string;
+}
+
+/** The related-services rows in the /buses row idiom, or '' when there are none. */
+export const buildRelated = (rows: RelatedRow[]): string => {
+  if (rows.length === 0) return '';
+  const items = rows
+    .map((row) => {
+      const no = escapeHtml(row.serviceNo);
+      const name = row.summary ? `<span class="nb-name">${escapeHtml(row.summary)}</span>` : '';
+      return (
+        `<li><a href="/bus/${no}"><span class="service-no">${no}</span>${name}` +
+        `<span class="nb-sub">${row.shared} stops in common</span></a></li>`
+      );
+    })
+    .join('');
+  return (
+    `<h2 class="rt-sec">Other buses along this route</h2>` +
+    `<div class="card"><ul class="rt-stops bus-index">${items}</ul></div>`
+  );
+};
+
 // --- the facts ---------------------------------------------------------------------
 
 const DAY_ROWS: Array<['wd' | 'sat' | 'sun', string]> = [
@@ -418,6 +491,7 @@ export const buildRouteDescription = (
 export const buildRouteStatic = (
   service: RouteStaticInfo,
   directions: RouteDirectionPayload[],
+  related: RelatedRow[] = [],
 ): string => {
   if (directions.length === 0) return ROUTE_STATIC_TARGET;
   const no = escapeHtml(service.serviceNo);
@@ -459,6 +533,7 @@ export const buildRouteStatic = (
     buildKeyStops(service.serviceNo, keyStops(directions)) +
     `<h2 class="rt-sec">Bus ${no} — all stops</h2>` +
     cards +
+    buildRelated(related) +
     `</section>`
   );
 };

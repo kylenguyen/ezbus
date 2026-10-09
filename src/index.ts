@@ -14,8 +14,10 @@ import {
   buildRouteHead,
   buildRouteJsonLd,
   buildRouteStatic,
+  rankRelated,
+  type RelatedRow,
 } from './route-page.js';
-import { RouteIndex, type RouteDirection, type RouteService } from './routes.js';
+import { RouteIndex, compareServiceNos, type RouteDirection, type RouteService } from './routes.js';
 import { buildSitemap } from './sitemap.js';
 import {
   STOP_NEARBY_TARGET,
@@ -591,6 +593,28 @@ app.get('/stop/:code', (req, res) => {
  * spelling, not the URL's — so `/bus/972m` declares `/bus/972M` its canonical
  * and case-variant URLs collapse to one indexed page per service.
  */
+/**
+ * The "other buses along this route" rows: ranked in route-page.ts against the
+ * stop page's reverse index, then each one's endpoints joined here — only the
+ * two ends, never the whole stop list, so six rows cost twelve map lookups.
+ */
+const relatedRows = (service: RouteService, directions: RouteDirectionPayload[]): RelatedRow[] =>
+  rankRelated(
+    service.serviceNo,
+    directions,
+    (code) => routes.servicesAt(code).map((entry) => entry.serviceNo),
+    compareServiceNos,
+  ).map((entry) => {
+    const other = routes.get(entry.serviceNo);
+    const ends = directionEndpoints(other?.directions.get(1) ?? other?.directions.get(2));
+    const summary = !other || !ends
+      ? ''
+      : other.loop
+        ? `⟲ Loop at ${other.loopDesc || ends.origin.description}`
+        : `${ends.origin.description} → ${ends.destination.description}`;
+    return { ...entry, summary };
+  });
+
 app.get('/bus/:service', (req, res) => {
   const raw = typeof req.params.service === 'string' ? req.params.service : '';
   const service = SERVICE_NO.test(raw) ? routes.get(raw) : null;
@@ -619,7 +643,8 @@ app.get('/bus/:service', (req, res) => {
       .replace(ROUTE_HEAD_TARGET, buildRouteHead(service, directions))
       .replace(
         ROUTE_STATIC_TARGET,
-        buildRouteStatic(service, directions) + buildRouteJsonLd(service.serviceNo, lead.stops),
+        buildRouteStatic(service, directions, relatedRows(service, directions)) +
+          buildRouteJsonLd(service.serviceNo, lead.stops),
       );
   }
 
