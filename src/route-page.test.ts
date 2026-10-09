@@ -74,7 +74,7 @@ describe('buildRouteStatic', () => {
 
   it('renders one card and one <ol> per direction', () => {
     assert.equal((html.match(/<ol class="rt-stops">/g) ?? []).length, 2);
-    assert.equal((html.match(/class="card rt-dir"/g) ?? []).length, 2);
+    assert.equal((html.match(/<details class="card rt-dir" open>/g) ?? []).length, 2);
     assert.ok(html.includes('To Demo Stn Exit B'));
     assert.ok(html.includes('To Demo Stn Exit A'));
   });
@@ -102,7 +102,7 @@ describe('buildRouteStatic', () => {
     const bare = buildRouteStatic(TRUNK, [
       direction(1, TRUNK_DIRECTIONS[0]?.stops ?? [], { firstBus: null, lastBus: null }),
     ]);
-    assert.ok(bare.includes('<p class="rt-dir-meta">2 stops</p>'));
+    assert.ok(bare.includes('<span class="rt-dir-meta">2 stops</span>'));
     assert.ok(!bare.includes('first bus'));
   });
 
@@ -146,6 +146,11 @@ describe('buildRouteStatic', () => {
     assert.ok(nasty.includes('Rd &amp; &quot;Lane&quot; &lt;1&gt;'));
     assert.ok(nasty.includes('Operated by S&amp;B &lt;T&gt;.'));
     assert.ok(!nasty.includes('Blk <'), 'raw < leaked into the list');
+  });
+
+  it('names the section with a real h2 and each direction with an h3', () => {
+    assert.ok(html.includes('<h2 class="rt-sec">Bus 74 — all stops</h2>'));
+    assert.equal((html.match(/<h3 class="rt-dir-head">/g) ?? []).length, 2);
   });
 
   it('collapses to the shell\'s own generic section for empty input', () => {
@@ -281,6 +286,18 @@ describe('route page heading and title invariants', () => {
   it('route.js renders the same h1 as the server', () => {
     assert.ok(script.includes('<h1 class="rt-ends"><span class="visually-hidden">Bus ${escape(route.serviceNo)}: </span>${ends}</h1>'));
     assert.ok(script.includes('<span class="rt-no" aria-hidden="true">'));
+  });
+
+  // Google renders JS before indexing. Removing #rt-static on the live view
+  // deleted every stop link, time and fact from the indexed page; it may only
+  // be closed there, and removed for the "no such service" page alone.
+  it('route.js keeps the static section on the live view, only collapsing it', () => {
+    const ladder = script.slice(script.indexOf('function applyLadder()'));
+    assert.match(ladder.slice(0, 200), /collapseStatic\(\);/);
+    const drops = [...script.matchAll(/^\s*dropStatic\(\);/gm)];
+    assert.equal(drops.length, 1, 'dropStatic() must have exactly one caller');
+    const missing = script.slice(script.indexOf('function renderMissing('));
+    assert.ok(missing.slice(0, 400).includes('dropStatic();'), 'that caller must be renderMissing');
   });
 
   // Google indexes the rendered DOM: a boot-time document.title would replace

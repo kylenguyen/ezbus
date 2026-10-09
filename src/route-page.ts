@@ -18,10 +18,12 @@ import type { RouteDirectionPayload, RouteStopJoined, RouteStopTimes } from './t
  * tags: the shell served unreplaced (unknown service, or /route.html via
  * express.static) is already valid, sensibly generic HTML. Edit the target in
  * the shell and the constant here in the same commit; route-page.test.ts pins
- * the pairing. The section is removed by route.js once the live view renders —
- * the interactive spine shows the same stops, and both at once would be the
- * route twice — so with JS on the reader never sees them together, and with JS
- * off this section is the page.
+ * the pairing. The section stays in the page once the live view renders —
+ * Google indexes the rendered DOM, and removing it there threw away every stop
+ * link, time and fact below for every crawl. route.js closes the per-direction
+ * stop lists instead (the interactive spine shows the same stops), so with JS
+ * on the reader sees them collapsed under the live view, and with JS off this
+ * section is the page.
  */
 
 // --- the swap targets, verbatim from public/route.html ------------------------
@@ -154,6 +156,12 @@ export const buildRouteHead = (
  * with its code as description and no road, and renders exactly that — the same
  * degradation /api/route/:service documents. Empty input (cold route index)
  * collapses to the shell's own generic section.
+ *
+ * Each direction is a `<details open>`: with JS off the lists are the page and
+ * read open; route.js closes them once the live view renders, because the
+ * interactive spine above already shows the same stops and both open would be
+ * the route twice. Closed is not removed — the links stay in the rendered DOM
+ * a crawler indexes, which is the whole point of server-rendering them.
  */
 export const buildRouteStatic = (
   service: RouteStaticInfo,
@@ -179,13 +187,16 @@ export const buildRouteStatic = (
         })
         .join('');
       return (
-        `<div class="card rt-dir">` +
-        `<div class="card-head"><div class="card-title">` +
-        `<h2 class="rt-dir-head">${heading}</h2>` +
-        `<p class="rt-dir-meta">${meta}</p>` +
-        `</div></div>` +
+        `<details class="card rt-dir" open>` +
+        // <summary> takes phrasing content plus headings only — no wrapper
+        // div — so the h3 and the meta line are its direct children and the
+        // stylesheet stacks them.
+        `<summary class="card-head">` +
+        `<h3 class="rt-dir-head">${heading}</h3>` +
+        `<span class="rt-dir-meta">${meta}</span>` +
+        `</summary>` +
         `<ol class="rt-stops">${rows}</ol>` +
-        `</div>`
+        `</details>`
       );
     })
     .join('');
@@ -193,8 +204,8 @@ export const buildRouteStatic = (
     ? `<p class="honesty">Operated by ${escapeHtml(service.operator)}.</p>`
     : '';
   return (
-    `<section id="rt-static" aria-label="All stops on bus ${no}">` +
-    `<p class="rt-sec">Bus ${no} — all stops</p>` +
+    `<section id="rt-static" aria-label="About bus ${no}">` +
+    `<h2 class="rt-sec">Bus ${no} — all stops</h2>` +
     cards +
     operator +
     `</section>`

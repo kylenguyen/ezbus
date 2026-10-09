@@ -207,12 +207,23 @@ function userDistanceM(stop) {
 
 /**
  * The server-rendered static route (#rt-static in route.html, injected by
- * /bus/:service) — every stop of every direction, for crawlers and for JS-off
- * readers. Once this page renders its own view of the route, keeping the
- * static copy too would show the same stops twice, so it is removed — not
- * hidden — the moment the live view takes over. Deliberately NOT removed on
+ * /bus/:service) — the facts, questions and every stop of every direction, for
+ * crawlers and for JS-off readers. It stays once the live view takes over:
+ * Google indexes the rendered DOM, and this section is what it has to index.
+ * Only the per-direction stop lists are closed, because the live spine above
+ * shows the same stops and both open would be the route twice. Left open on
  * fetch failure: renderFailed's guard sits above it, and a route list already
  * in hand is exactly what a reader on a dead connection still wants.
+ */
+function collapseStatic() {
+  for (const list of document.querySelectorAll('#rt-static details.rt-dir[open]')) {
+    list.removeAttribute('open');
+  }
+}
+
+/**
+ * Removed outright only for the "no such service" page: a route the API has
+ * disowned (feed drift) under "There's no bus service X" would contradict it.
  */
 function dropStatic() {
   document.getElementById('rt-static')?.remove();
@@ -246,7 +257,7 @@ async function loadRoute() {
  * raw storage strings, hands them over, and assigns the outcome.
  */
 function applyLadder() {
-  dropStatic();
+  collapseStatic();
   const resolved = resolveAnchor({
     serviceNo,
     queryStop: new URLSearchParams(location.search).get('stop'),

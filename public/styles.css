@@ -2892,26 +2892,86 @@ h1.card-title {
 }
 
 /* --- route page: the server-rendered static body ---
-   #rt-static is the crawlable route (src/route-page.ts): one card per
-   direction, removed by route.js the moment the live spine renders. The
-   heading rides the card-head plate; body face, not the display face — a
-   destination is prose, not a number matched against the world. */
+   #rt-static is the crawlable route (src/route-page.ts): the facts and one
+   card per direction. It stays under the live view; route.js closes the
+   per-direction <details> once the spine renders, so with JS the lists are
+   one 44px row each. The heading rides the card-head plate; body face, not
+   the display face — a destination is prose, not a number matched against
+   the world. */
 #rt-static {
-  margin-top: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* The section eyebrows are real h2s here (a crawlable outline); `.rt-sec`
+   already overrides the UA heading size and weight, this only spaces them. */
+h2.rt-sec {
+  margin: 1.25rem 0 0.4rem;
 }
 
 .rt-dir {
   margin: 0 0 0.75rem;
 }
 
+/* The direction summary is the card-head plate, tappable: heading and meta
+   stacked in column 1, the chevron centred in column 2. The UA disclosure
+   marker would not sit in that grid, so it is dropped and the chevron drawn
+   here: › closed, rotated when open, the picker rows' own glyph. */
+.rt-dir > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 0.5rem;
+  list-style: none;
+  min-height: 2.75rem;
+  align-content: center;
+  cursor: pointer;
+}
+
+.rt-dir > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rt-dir > summary::after {
+  content: '›';
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding: 0 0.2rem;
+  color: var(--muted);
+  font-weight: 600;
+  transition: transform 0.15s;
+}
+
+.rt-dir[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-dir > summary::after {
+    transition: none;
+  }
+}
+
+/* Closed, the plate is the whole card — its bottom rule would double the
+   card's own border. */
+.rt-dir:not([open]) > summary {
+  border-bottom: 0;
+}
+
+.rt-dir > summary > .rt-dir-head,
+.rt-dir > summary > .rt-dir-meta {
+  grid-column: 1;
+}
+
 .rt-dir-head {
   margin: 0;
+  font-family: var(--sans);
   font-size: 0.95rem;
   font-weight: 650;
   line-height: 1.25;
 }
 
 .rt-dir-meta {
+  display: block;
   margin: 0.15rem 0 0;
   color: var(--muted);
   font-size: 0.78rem;
