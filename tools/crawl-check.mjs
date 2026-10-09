@@ -17,9 +17,14 @@
  *      generic shell's (fetched once via the static /stop.html path, so the
  *      comparison tracks the copy rather than hardcoding it); every /bus/
  *      page carries at least one <ol>, parseable JSON-LD, a <title>
- *      containing `timing & route` (entity-decoded), and every /stop/ href
- *      it emits must be in the sitemap (no under-inclusion: a serviced stop
- *      must be listed); the homepage `/` (also a sitemap URL) carries a
+ *      containing `timing & route` (entity-decoded), exactly one <h1> whose
+ *      text starts `Bus <N>:` (the route, not the wordmark), the server-
+ *      rendered "at a glance" facts card, a meta description starting
+ *      `Bus <N> timing & route`, and exactly one FAQPage block whose every
+ *      question and answer appears verbatim in the visible <details> rows
+ *      (Google requires the two to match); every /stop/ href it emits must be
+ *      in the sitemap (no under-inclusion: a serviced stop must be listed);
+ *      the homepage `/` (also a sitemap URL) carries a
  *      <title> containing `bus timing` and exactly one FAQPage JSON-LD block
  *      whose mainEntity holds exactly 4 questions; every page carries
  *      exactly one canonical tag whose href is its own canonical URL.
@@ -116,6 +121,17 @@ const decodeEntities = (text) =>
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
+
+/** The inverse of decodeEntities, matching the server's escapeHtml. */
+const encodeEntities = (text) =>
+  text.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+
+/** Every <h1>'s text content, tags stripped and entity-decoded. Comments are
+ *  dropped first so a shell comment mentioning "<h1>" is not counted. */
+const headings1 = (html) =>
+  [...html.replace(/<!--[\s\S]*?-->/g, '').matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) =>
+    decodeEntities(m[1].replace(/<[^>]+>/g, '')).trim(),
+  );
 
 /** Every canonical href on the page, however formatted the tag is. */
 const canonicals = (html) =>
@@ -239,8 +255,29 @@ await eachLimit([...pages.entries()], FETCH_CONCURRENCY, async ([path, canonical
     }
   } else if (path.startsWith('/bus/')) {
     if (!/<ol[\s>]/.test(page.body)) fail(`${path}: no <ol>`);
-    const { count } = jsonLdBlocks(path, page.body);
+    const { count, parsed } = jsonLdBlocks(path, page.body);
     if (count === 0) fail(`${path}: no JSON-LD block`);
+    const serviceNo = decodeURIComponent(path.slice('/bus/'.length));
+    const h1s = headings1(page.body);
+    if (h1s.length !== 1) fail(`${path}: expected exactly 1 <h1>, found ${h1s.length}`);
+    else if (!h1s[0].startsWith(`Bus ${serviceNo}:`)) fail(`${path}: <h1> "${h1s[0]}" does not start "Bus ${serviceNo}:"`);
+    if (!page.body.includes(`Bus ${encodeEntities(serviceNo)} at a glance</h2>`)) fail(`${path}: no "at a glance" facts card`);
+    const routeDescription = metaDescription(page.body);
+    if (routeDescription === null || !routeDescription.startsWith(`Bus ${serviceNo} timing & route`)) {
+      fail(`${path}: meta description "${routeDescription}" is not the per-service copy`);
+    }
+    const faqBlocks = parsed.filter((block) => block['@type'] === 'FAQPage');
+    if (faqBlocks.length !== 1) fail(`${path}: expected exactly 1 FAQPage JSON-LD block, found ${faqBlocks.length}`);
+    else {
+      const questions = Array.isArray(faqBlocks[0].mainEntity) ? faqBlocks[0].mainEntity : [];
+      if (questions.length === 0) fail(`${path}: FAQPage has no questions`);
+      for (const question of questions) {
+        const visible =
+          `<summary>${encodeEntities(question.name)}</summary>` +
+          `<p>${encodeEntities(question.acceptedAnswer?.text ?? '')}</p>`;
+        if (!page.body.includes(visible)) fail(`${path}: FAQ "${question.name}" is not mirrored verbatim on the page`);
+      }
+    }
     const title = pageTitle(page.body);
     if (title === null) fail(`${path}: no <title>`);
     else if (!title.includes('timing & route')) fail(`${path}: <title> "${title}" does not contain "timing & route"`);
