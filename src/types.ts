@@ -130,6 +130,8 @@ export interface RouteDirectionPayload {
   destination: RouteEndpoint;
   firstBus: RouteStopTimes | null;
   lastBus: RouteStopTimes | null;
+  /** End-to-end length in km from BusRoutes `Distance`; null when unknown. */
+  lengthKm: number | null;
   stops: RouteStopJoined[];
 }
 

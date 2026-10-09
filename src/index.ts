@@ -10,6 +10,7 @@ import { PlaceIndex } from './places.js';
 import {
   ROUTE_HEAD_TARGET,
   ROUTE_STATIC_TARGET,
+  buildRouteDescription,
   buildRouteHead,
   buildRouteJsonLd,
   buildRouteStatic,
@@ -340,6 +341,7 @@ const directionPayload = (
     destination: endpoints.destination,
     firstBus: found.firstBus,
     lastBus: found.lastBus,
+    lengthKm: found.lengthKm,
     stops: found.stops.map((code, i) => ({ seq: i + 1, ...joinRouteStop(code) })),
   };
 };
@@ -605,10 +607,7 @@ app.get('/bus/:service', (req, res) => {
         ? `bus ${service.serviceNo} timing & route · loop at ${service.loopDesc || lead.origin.description} · ezbus`
         : `bus ${service.serviceNo} timing & route · ${lead.origin.description} → ${lead.destination.description} · ezbus`,
     );
-    const description = escapeHtml(
-      `Bus ${service.serviceNo} timing and full route: every stop from ${lead.origin.description} to ` +
-        `${lead.destination.description} with live arrival times. Operated by ${service.operator}.`,
-    );
+    const description = escapeHtml(buildRouteDescription(service, directions));
     const url = `https://ezbus.sg/bus/${escapeHtml(service.serviceNo)}`;
     html = html
       .replace(ROUTE_TITLE_TAG, `<title>${title}</title>`)

@@ -1,5 +1,5 @@
 import { escapeHtml } from './stop-page.js';
-import type { RouteDirectionPayload, RouteStopJoined, RouteStopTimes } from './types.js';
+import type { RouteDirectionPayload, RouteStopJoined, RouteStopTimes, ServiceFreq } from './types.js';
 
 /**
  * The route page's server-rendered static body — everything stable about a
@@ -48,6 +48,10 @@ export interface RouteStaticInfo {
   loop: boolean;
   /** Empty string for a normal two-direction service, as RouteService spells it. */
   loopDesc: string;
+  /** DataMall `Category`; empty when BusServices has no record. */
+  category: string;
+  /** AM headways, raw (`"06-08"`); null where the feed has none. */
+  freq: ServiceFreq;
 }
 
 /** DataMall HHMM: hours 00-23, minutes 00-59 — the same rule stop-page.ts
@@ -71,17 +75,72 @@ const daySpan = (
   return `${from ?? '–'} – ${to ?? '–'}`;
 };
 
-/** "first bus – last: weekdays 05:30 – 23:30 · Sat … · Sun …", or '' with no data. */
-const timesLine = (direction: RouteDirectionPayload): string => {
-  const spans: Array<[string, string | null]> = [
-    ['weekdays', daySpan(direction.firstBus, direction.lastBus, 'wd')],
-    ['Sat', daySpan(direction.firstBus, direction.lastBus, 'sat')],
-    ['Sun', daySpan(direction.firstBus, direction.lastBus, 'sun')],
-  ];
-  const parts = spans
-    .filter((entry): entry is [string, string] => entry[1] !== null)
-    .map(([label, span]) => `${label} ${span}`);
-  return parts.length === 0 ? '' : `first bus – last: ${parts.join(' · ')}`;
+/**
+ * DataMall operator codes as riders know them — "SBS Transit bus 74" is how
+ * the service is searched for, never "SBST". An unknown code passes through
+ * unchanged rather than being guessed at.
+ */
+const OPERATOR_NAMES: Record<string, string> = {
+  SBST: 'SBS Transit',
+  SMRT: 'SMRT Buses',
+  TTS: 'Tower Transit Singapore',
+  GAS: 'Go-Ahead Singapore',
+};
+
+export const operatorName = (code: string): string =>
+  Object.hasOwn(OPERATOR_NAMES, code) ? (OPERATOR_NAMES[code] ?? code) : code;
+
+/**
+ * DataMall `Category` as a phrase: the guide lists EXPRESS, FEEDER,
+ * INDUSTRIAL, TOWNLINK, TRUNK and a family of flat-fee categories. The named
+ * five read as "Trunk service" and so on; anything else (a flat-fee label, a
+ * category added after Aug 2026) is shown as the feed spells it, sentence-cased,
+ * rather than dropped. Empty in, empty out.
+ */
+export const categoryLabel = (category: string): string => {
+  const raw = category.trim();
+  if (!raw) return '';
+  if (/^(EXPRESS|FEEDER|INDUSTRIAL|TOWNLINK|TRUNK)$/i.test(raw)) {
+    return `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()} service`;
+  }
+  return `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()}`;
+};
+
+/**
+ * A DataMall headway for display: `'06-08'` → `'6–8 min'`, `'08-08'` →
+ * `'8 min'`, a bare `'10'` → `'10 min'`, anything else null. The same rule as
+ * fmtFreq in public/stop-logic.js, which the stop page uses — one rule for one
+ * field on both pages; edit them together.
+ */
+export const fmtFreq = (freq: string | null): string | null => {
+  const raw = (freq ?? '').trim();
+  const range = /^(\d{1,3})-(\d{1,3})$/.exec(raw);
+  if (range) {
+    const lo = Number(range[1]);
+    const hi = Number(range[2]);
+    return lo === hi ? `${lo} min` : `${lo}–${hi} min`;
+  }
+  return /^\d{1,3}$/.test(raw) ? `${Number(raw)} min` : null;
+};
+
+/** "23.4 km", one decimal — or null for an unknown or zero length. */
+const fmtKm = (km: number | null): string | null =>
+  km !== null && Number.isFinite(km) && km > 0 ? `${km.toFixed(1)} km` : null;
+
+/**
+ * The headway sentence, or null when the feed gave neither figure. The two
+ * windows are the guide's own (§2.2): AM peak 06:30–08:30, AM off-peak
+ * 08:31–16:59. Stated, because "every 8 min" with no window would overclaim
+ * for the evening and the night.
+ */
+export const freqLine = (freq: ServiceFreq): string | null => {
+  const peak = fmtFreq(freq.peak);
+  const offpeak = fmtFreq(freq.offpeak);
+  const parts = [
+    peak ? `every ${peak} in the morning peak (06:30–08:30)` : '',
+    offpeak ? `every ${offpeak} off-peak (08:31–16:59)` : '',
+  ].filter(Boolean);
+  return parts.length === 0 ? null : parts.join(', ');
 };
 
 // --- the header ----------------------------------------------------------------
@@ -146,6 +205,124 @@ export const buildRouteHead = (
 
 // --- the static body -------------------------------------------------------------
 
+// --- the facts ---------------------------------------------------------------------
+
+const DAY_ROWS: Array<['wd' | 'sat' | 'sun', string]> = [
+  ['wd', 'Weekdays'],
+  ['sat', 'Saturday'],
+  ['sun', 'Sunday'],
+];
+
+/**
+ * "Bus 74 at a glance" — the questions a search for a bus number is usually
+ * asking, answered in one card: how often, how long, who runs it, and first and
+ * last bus. Every line is omitted when the feed has no data for it; nothing is
+ * estimated. The schedule is a real <table> transposed for a phone — a row per
+ * day type, a column per direction — because three day columns of
+ * "05:30 – 23:30" do not fit 375 px beside a stop name, and two directions do.
+ * The times are the seq-1 record's, i.e. departures from the first stop, and
+ * the table says so.
+ */
+export const buildRouteFacts = (
+  service: RouteStaticInfo,
+  directions: RouteDirectionPayload[],
+): string => {
+  const lead = directions[0];
+  if (!lead) return '';
+  const no = escapeHtml(service.serviceNo);
+
+  const rows: Array<[string, string]> = [];
+  const freq = freqLine(service.freq);
+  if (freq) rows.push(['How often', `${freq.charAt(0).toUpperCase()}${freq.slice(1)}`]);
+
+  const length = fmtKm(lead.lengthKm);
+  const ends = service.loop
+    ? `loop from ${escapeHtml(lead.origin.description)}`
+    : `${escapeHtml(lead.origin.description)} ⇄ ${escapeHtml(lead.destination.description)}`;
+  rows.push([
+    'Route',
+    [`${lead.stops.length} stops`, length ? `${length}${service.loop ? '' : ' one way'}` : '', ends]
+      .filter(Boolean)
+      .join(' · '),
+  ]);
+
+  const operator = [
+    service.operator ? escapeHtml(operatorName(service.operator)) : '',
+    escapeHtml(categoryLabel(service.category)),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  if (operator) rows.push(['Operator', operator]);
+
+  const list = rows
+    .map(([term, detail]) => `<div><dt>${term}</dt><dd>${detail}</dd></div>`)
+    .join('');
+
+  const withTimes = directions.filter((direction) => direction.firstBus || direction.lastBus);
+  const table =
+    withTimes.length === 0
+      ? ''
+      : `<table class="sp-week rt-times">` +
+        `<caption class="visually-hidden">First and last bus ${no} from the first stop, by day</caption>` +
+        `<thead><tr><th scope="col">First – last</th>` +
+        withTimes
+          .map(
+            (direction) =>
+              `<th scope="col" class="rt-times-dir">From ${escapeHtml(direction.origin.description)}</th>`,
+          )
+          .join('') +
+        `</tr></thead><tbody>` +
+        DAY_ROWS.map(
+          ([day, label]) =>
+            `<tr><th scope="row">${label}</th>` +
+            withTimes
+              .map((direction) => `<td>${daySpan(direction.firstBus, direction.lastBus, day) ?? '–'}</td>`)
+              .join('') +
+            `</tr>`,
+        ).join('') +
+        `</tbody></table>`;
+
+  return (
+    `<h2 class="rt-sec">Bus ${no} at a glance</h2>` +
+    `<div class="card rt-facts">` +
+    `<dl class="rt-facts-list">${list}</dl>` +
+    table +
+    `</div>`
+  );
+};
+
+/**
+ * The per-service meta description: the route, then the two numbers a search
+ * snippet can answer outright — headway and first/last bus — then the operator
+ * by the name riders search for. Each clause is dropped when its data is
+ * missing. Plain text; the caller escapes it into the attribute.
+ */
+export const buildRouteDescription = (
+  service: RouteStaticInfo,
+  directions: RouteDirectionPayload[],
+): string => {
+  const lead = directions[0];
+  if (!lead) return '';
+  const route = service.loop
+    ? `Bus ${service.serviceNo} timing & route: loop service from ${lead.origin.description}` +
+      `${service.loopDesc ? ` via ${service.loopDesc}` : ''}, every stop with live arrival times.`
+    : `Bus ${service.serviceNo} timing & route: every stop from ${lead.origin.description} to ` +
+      `${lead.destination.description} with live arrival times.`;
+  const peak = fmtFreq(service.freq.peak);
+  const first = lead.firstBus ? fmtHHMM(lead.firstBus.wd) : null;
+  const last = lead.lastBus ? fmtHHMM(lead.lastBus.wd) : null;
+  const times = [first ? `first bus ${first}` : '', last ? `last bus ${last}` : '']
+    .filter(Boolean)
+    .join(', ');
+  const clauses = [peak ? `every ${peak} at peak` : '', times ? `${times} on weekdays` : ''].filter(
+    Boolean,
+  );
+  const sentence = clauses.join(', ');
+  const scheduleLine = sentence ? ` ${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.` : '';
+  const operator = service.operator ? ` Operated by ${operatorName(service.operator)}.` : '';
+  return `${route}${scheduleLine}${operator}`;
+};
+
 /**
  * The full route as crawlable HTML: one card per direction — heading, first/last
  * bus, and a real `<ol>` of every stop in seq order, each linked to its stop
@@ -174,9 +351,10 @@ export const buildRouteStatic = (
       const heading = service.loop
         ? `⟲ Loop at ${escapeHtml(service.loopDesc || direction.origin.description)}`
         : `To ${escapeHtml(direction.destination.description)}`;
-      const meta = [`${direction.stops.length} stops`, timesLine(direction)]
-        .filter(Boolean)
-        .join(' · ');
+      // First/last bus lives in the facts table now; the plate keeps the count
+      // and the length, which differ per direction.
+      const length = fmtKm(direction.lengthKm);
+      const meta = [`${direction.stops.length} stops`, length].filter(Boolean).join(' · ');
       const rows = direction.stops
         .map((stop) => {
           const road = stop.roadName ? `<span class="nb-sub">${escapeHtml(stop.roadName)}</span>` : '';
@@ -200,14 +378,11 @@ export const buildRouteStatic = (
       );
     })
     .join('');
-  const operator = service.operator
-    ? `<p class="honesty">Operated by ${escapeHtml(service.operator)}.</p>`
-    : '';
   return (
     `<section id="rt-static" aria-label="About bus ${no}">` +
+    buildRouteFacts(service, directions) +
     `<h2 class="rt-sec">Bus ${no} — all stops</h2>` +
     cards +
-    operator +
     `</section>`
   );
 };

@@ -2977,3 +2977,46 @@ h2.rt-sec {
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
+
+/* "Bus N at a glance" (buildRouteFacts): label | answer rows, then the
+   first/last table. The labels are muted and narrow so the answers — the
+   numbers a search was asking for — carry the row. */
+.rt-facts-list {
+  margin: 0;
+  padding: 0 0.8rem;
+}
+
+.rt-facts-list > div {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+}
+
+.rt-facts-list > div + div {
+  border-top: 1px solid var(--border);
+}
+
+.rt-facts-list dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.rt-facts-list dd {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.rt-times {
+  border-top: 1px solid var(--border);
+}
+
+/* Direction columns are named by a stop, which is prose: sentence case, not
+   the uppercase eyebrow the day/column labels wear. */
+.sp-week thead th.rt-times-dir {
+  text-transform: none;
+  letter-spacing: normal;
+  vertical-align: bottom;
+}

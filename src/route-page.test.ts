@@ -5,7 +5,13 @@ import { describe, it } from 'node:test';
 import {
   ROUTE_HEAD_TARGET,
   ROUTE_STATIC_TARGET,
+  buildRouteDescription,
+  buildRouteFacts,
   buildRouteHead,
+  categoryLabel,
+  fmtFreq,
+  freqLine,
+  operatorName,
   buildRouteJsonLd,
   buildRouteStatic,
 } from './route-page.js';
@@ -38,7 +44,7 @@ const missed = (code: string, seq: number): RouteStopJoined => ({
 const direction = (
   dir: 1 | 2,
   stops: RouteStopJoined[],
-  times: Partial<Pick<RouteDirectionPayload, 'firstBus' | 'lastBus'>> = {},
+  times: Partial<Pick<RouteDirectionPayload, 'firstBus' | 'lastBus' | 'lengthKm'>> = {},
 ): RouteDirectionPayload => {
   const first = stops[0];
   const last = stops[stops.length - 1];
@@ -51,12 +57,27 @@ const direction = (
     // no schedule" and must not be papered over with the default.
     firstBus: 'firstBus' in times ? (times.firstBus ?? null) : { wd: '0530', sat: '0535', sun: '0540' },
     lastBus: 'lastBus' in times ? (times.lastBus ?? null) : { wd: '2330', sat: '2335', sun: '2340' },
+    lengthKm: 'lengthKm' in times ? (times.lengthKm ?? null) : 12.34,
     stops,
   };
 };
 
-const TRUNK = { serviceNo: '74', operator: 'SBST', loop: false, loopDesc: '' };
-const LOOP = { serviceNo: '52', operator: 'SBST', loop: true, loopDesc: 'Opp Blk 101' };
+const TRUNK = {
+  serviceNo: '74',
+  operator: 'SBST',
+  loop: false,
+  loopDesc: '',
+  category: 'TRUNK',
+  freq: { peak: '06-08', offpeak: '10-15' },
+};
+const LOOP = {
+  serviceNo: '52',
+  operator: 'SBST',
+  loop: true,
+  loopDesc: 'Opp Blk 101',
+  category: 'FEEDER',
+  freq: { peak: '08-08', offpeak: null },
+};
 
 const TRUNK_DIRECTIONS = [
   direction(1, [
@@ -93,17 +114,21 @@ describe('buildRouteStatic', () => {
     assert.ok(html.includes('<span class="nb-sub">Demo Ave 2</span>'));
   });
 
-  it('carries the operator and the direction first/last bus line', () => {
-    assert.ok(html.includes('Operated by SBST.'));
-    assert.ok(html.includes('2 stops · first bus – last: weekdays 05:30 – 23:30 · Sat 05:35 – 23:35 · Sun 05:40 – 23:40'));
+  it('gives each direction plate its stop count and length', () => {
+    assert.equal((html.match(/<span class="rt-dir-meta">2 stops · 12\.3 km<\/span>/g) ?? []).length, 2);
   });
 
-  it('renders no times line when the feed has no schedule, no fake dashes', () => {
+  it('drops the length when the feed has none, never a fake 0 km', () => {
     const bare = buildRouteStatic(TRUNK, [
-      direction(1, TRUNK_DIRECTIONS[0]?.stops ?? [], { firstBus: null, lastBus: null }),
+      direction(1, TRUNK_DIRECTIONS[0]?.stops ?? [], { lengthKm: null }),
     ]);
     assert.ok(bare.includes('<span class="rt-dir-meta">2 stops</span>'));
-    assert.ok(!bare.includes('first bus'));
+    const zero = buildRouteStatic(TRUNK, [direction(1, TRUNK_DIRECTIONS[0]?.stops ?? [], { lengthKm: 0 })]);
+    assert.ok(!zero.includes('0.0 km'));
+  });
+
+  it('leads with the facts card, ahead of the stop lists', () => {
+    assert.ok(html.indexOf('Bus 74 at a glance') < html.indexOf('Bus 74 — all stops'));
   });
 
   it('keeps a loop\'s duplicated origin — 10001 appears twice, in order', () => {
@@ -144,7 +169,7 @@ describe('buildRouteStatic', () => {
     ]);
     assert.ok(nasty.includes('Blk &lt;&amp;&quot;&#39;&gt;'));
     assert.ok(nasty.includes('Rd &amp; &quot;Lane&quot; &lt;1&gt;'));
-    assert.ok(nasty.includes('Operated by S&amp;B &lt;T&gt;.'));
+    assert.ok(nasty.includes('S&amp;B &lt;T&gt;'), 'unknown operator code passes through, escaped');
     assert.ok(!nasty.includes('Blk <'), 'raw < leaked into the list');
   });
 
@@ -157,9 +182,9 @@ describe('buildRouteStatic', () => {
     assert.equal(buildRouteStatic(TRUNK, []), ROUTE_STATIC_TARGET);
   });
 
-  it('omits the operator line when the feed gave none', () => {
-    const html = buildRouteStatic({ ...TRUNK, operator: '' }, TRUNK_DIRECTIONS);
-    assert.ok(!html.includes('Operated by'));
+  it('omits the operator row when the feed gave neither operator nor category', () => {
+    const html = buildRouteStatic({ ...TRUNK, operator: '', category: '' }, TRUNK_DIRECTIONS);
+    assert.ok(!html.includes('<dt>Operator</dt>'));
   });
 });
 
@@ -207,6 +232,128 @@ describe('buildRouteJsonLd', () => {
     const items = parsed[1]?.itemListElement as Array<Record<string, unknown>>;
     // Round-trips: the escape is JSON's own, so the value is untouched.
     assert.equal(items[0]?.name, 'A </script><script>alert(1)');
+  });
+});
+
+describe('route facts formatting', () => {
+  it('names the four operators as riders search for them, passing unknowns through', () => {
+    assert.equal(operatorName('SBST'), 'SBS Transit');
+    assert.equal(operatorName('SMRT'), 'SMRT Buses');
+    assert.equal(operatorName('TTS'), 'Tower Transit Singapore');
+    assert.equal(operatorName('GAS'), 'Go-Ahead Singapore');
+    assert.equal(operatorName('NEW'), 'NEW');
+    // A prototype key is not an operator.
+    assert.equal(operatorName('constructor'), 'constructor');
+  });
+
+  it('phrases the guide\'s named categories and keeps the rest readable', () => {
+    assert.equal(categoryLabel('TRUNK'), 'Trunk service');
+    assert.equal(categoryLabel('feeder'), 'Feeder service');
+    assert.equal(categoryLabel('FLAT FEE $1.10'), 'Flat fee $1.10');
+    assert.equal(categoryLabel('  '), '');
+  });
+
+  it('formats headways exactly as the stop page does', () => {
+    assert.equal(fmtFreq('06-08'), '6–8 min');
+    assert.equal(fmtFreq('08-08'), '8 min');
+    assert.equal(fmtFreq('10'), '10 min');
+    assert.equal(fmtFreq('-'), null);
+    assert.equal(fmtFreq(null), null);
+    assert.equal(fmtFreq('6 to 8'), null);
+  });
+
+  it('states the guide\'s time windows with each headway, and nothing without data', () => {
+    assert.equal(
+      freqLine({ peak: '06-08', offpeak: '10-15' }),
+      'every 6–8 min in the morning peak (06:30–08:30), every 10–15 min off-peak (08:31–16:59)',
+    );
+    assert.equal(freqLine({ peak: null, offpeak: '10-15' }), 'every 10–15 min off-peak (08:31–16:59)');
+    assert.equal(freqLine({ peak: null, offpeak: null }), null);
+  });
+});
+
+describe('buildRouteFacts', () => {
+  const html = buildRouteFacts(TRUNK, TRUNK_DIRECTIONS);
+
+  it('answers how often, how long and who runs it', () => {
+    assert.ok(html.includes('<h2 class="rt-sec">Bus 74 at a glance</h2>'));
+    assert.ok(
+      html.includes(
+        '<dt>How often</dt><dd>Every 6–8 min in the morning peak (06:30–08:30), every 10–15 min off-peak (08:31–16:59)</dd>',
+      ),
+    );
+    assert.ok(html.includes('<dt>Route</dt><dd>2 stops · 12.3 km one way · Demo Stn Exit A ⇄ Demo Stn Exit B</dd>'));
+    assert.ok(html.includes('<dt>Operator</dt><dd>SBS Transit · Trunk service</dd>'));
+  });
+
+  it('tabulates first and last bus per day type, one column per direction', () => {
+    assert.ok(html.includes('<th scope="col" class="rt-times-dir">From Demo Stn Exit A</th>'));
+    assert.ok(html.includes('<th scope="col" class="rt-times-dir">From Demo Stn Exit B</th>'));
+    assert.ok(html.includes('<tr><th scope="row">Weekdays</th><td>05:30 – 23:30</td><td>05:30 – 23:30</td></tr>'));
+    assert.ok(html.includes('<tr><th scope="row">Sunday</th><td>05:40 – 23:40</td><td>05:40 – 23:40</td></tr>'));
+  });
+
+  it('leaves out a direction with no schedule, and the table when none has one', () => {
+    const [d1, d2] = TRUNK_DIRECTIONS;
+    assert.ok(d1 && d2);
+    const half = buildRouteFacts(TRUNK, [d1, { ...d2, firstBus: null, lastBus: null }]);
+    assert.equal((half.match(/rt-times-dir/g) ?? []).length, 1);
+    const none = buildRouteFacts(TRUNK, [
+      { ...d1, firstBus: null, lastBus: null },
+      { ...d2, firstBus: null, lastBus: null },
+    ]);
+    assert.ok(!none.includes('<table'));
+  });
+
+  it('drops the headway row without data and says "loop from" for a loop', () => {
+    const loop = buildRouteFacts({ ...LOOP, freq: { peak: null, offpeak: null } }, [
+      direction(1, [joined('10001', 1, 'Blk 101', 'Demo Ave 1'), joined('10001', 2, 'Blk 101', 'Demo Ave 1')]),
+    ]);
+    assert.ok(!loop.includes('How often'));
+    assert.ok(loop.includes('<dd>2 stops · 12.3 km · loop from Blk 101</dd>'));
+    assert.ok(loop.includes('Feeder service'));
+  });
+
+  it('escapes descriptions into the table and the route row', () => {
+    const nasty = buildRouteFacts(TRUNK, [
+      direction(1, [joined('10011', 1, 'A <b>', 'Rd'), joined('10019', 2, 'B & C', 'Rd')]),
+    ]);
+    assert.ok(nasty.includes('From A &lt;b&gt;</th>'));
+    assert.ok(nasty.includes('A &lt;b&gt; ⇄ B &amp; C'));
+  });
+
+  it('renders nothing for empty input', () => {
+    assert.equal(buildRouteFacts(TRUNK, []), '');
+  });
+});
+
+describe('buildRouteDescription', () => {
+  it('leads with the route, then headway and first/last bus, then the operator\'s name', () => {
+    assert.equal(
+      buildRouteDescription(TRUNK, TRUNK_DIRECTIONS),
+      'Bus 74 timing & route: every stop from Demo Stn Exit A to Demo Stn Exit B with live arrival times. ' +
+        'Every 6–8 min at peak, first bus 05:30, last bus 23:30 on weekdays. Operated by SBS Transit.',
+    );
+  });
+
+  it('phrases a loop by where it turns', () => {
+    const text = buildRouteDescription(LOOP, [
+      direction(1, [joined('10001', 1, 'Blk 101', 'Demo Ave 1'), joined('10001', 2, 'Blk 101', 'Demo Ave 1')]),
+    ]);
+    assert.ok(text.startsWith('Bus 52 timing & route: loop service from Blk 101 via Opp Blk 101, every stop'));
+    assert.ok(text.includes('Every 8 min at peak, first bus 05:30'));
+  });
+
+  it('drops each clause whose data is missing, keeping the sentence well-formed', () => {
+    const bare = buildRouteDescription({ ...TRUNK, operator: '', freq: { peak: null, offpeak: null } }, [
+      direction(1, TRUNK_DIRECTIONS[0]?.stops ?? [], { firstBus: null, lastBus: null }),
+    ]);
+    assert.equal(
+      bare,
+      'Bus 74 timing & route: every stop from Demo Stn Exit A to Demo Stn Exit B with live arrival times.',
+    );
+    const timesOnly = buildRouteDescription({ ...TRUNK, freq: { peak: null, offpeak: null } }, TRUNK_DIRECTIONS);
+    assert.ok(timesOnly.includes(' First bus 05:30, last bus 23:30 on weekdays. Operated'));
   });
 });
 
