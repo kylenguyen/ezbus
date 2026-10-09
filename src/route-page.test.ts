@@ -649,6 +649,15 @@ describe('route page heading and title invariants', () => {
     assert.ok(shell.includes('<p class="wordmark"><a href="/"'));
   });
 
+  // The search visitor's way into the product: after the route content, never
+  // above the live view, and always pointing at the board.
+  it('the shell ends <main> with the what-ezbus-is block linking to the board', () => {
+    const why = shell.indexOf('<section class="rt-why"');
+    assert.ok(why > shell.indexOf(ROUTE_STATIC_TARGET), 'must come after the route content');
+    assert.ok(why < shell.indexOf('</main>'));
+    assert.ok(shell.slice(why, shell.indexOf('</main>')).includes('<a href="/">Open the live board</a>'));
+  });
+
   it('route.js renders the same h1 as the server', () => {
     assert.ok(script.includes('<h1 class="rt-ends"><span class="visually-hidden">Bus ${escape(route.serviceNo)}: </span>${ends}</h1>'));
     assert.ok(script.includes('<span class="rt-no" aria-hidden="true">'));

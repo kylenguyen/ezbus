@@ -3020,3 +3020,65 @@ h2.rt-sec {
   letter-spacing: normal;
   vertical-align: bottom;
 }
+
+/* --- route page: what ezbus is ---
+   The last block in <main>, for a reader who came from a search for one bus.
+   A plain card, the same raised-surface rule as the FAQ rows (the border is
+   its only edge in dark mode). The call to action is the accent's job — it is
+   the one interactive affordance here — drawn as an outlined 44px button so
+   it does not out-shout the live arrivals at the top of the page. */
+.rt-why {
+  margin-top: 1.5rem;
+}
+
+.rt-why-list {
+  margin: 0;
+  padding: 0.3rem 0.8rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.rt-why-list li {
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.rt-why-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.rt-why-list strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.rt-why-cta {
+  margin: 0.6rem 0 0;
+}
+
+.rt-why-cta a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.rt-why-cta a:active {
+  background: var(--surface-2);
+}
+
+.rt-why-cta a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
