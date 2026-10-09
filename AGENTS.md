@@ -74,7 +74,9 @@ convenience for capability, the default answer is no. Concretely:
 - No login, no account, no server-side user state. Six `localStorage` keys, and
   the server stores nothing about anyone:
   - `bus-board.pins.v1` — the pinned stops. Orthogonal to the rest: a pin is not
-    a door, and changing door leaves them alone.
+    a door, and changing door leaves them alone. Written by the board, the stop
+    page's ☆ and the route page's anchor panel, always as the same
+    `{code, description, roadName}` rows — pin anywhere is pin on the board.
   - `bus-board.loc.v1` — the last GPS fix and its age, and the **sole** owner of
     both. The 12 h cached-paint window, the 5-minute focus re-locate and the
     200 m re-rank all read this key and only this key, which is why all three
@@ -352,6 +354,23 @@ for fresh loads as well; it is `no-cache` now (`STATIC_CACHE_CONTROL` in
 - [public/stop-logic.js](public/stop-logic.js) — the stop page's pure decision
   logic: no DOM, `fetch`, storage or clock, `now` is a parameter; unit tested
   from `src/stop-logic.test.ts` via the same computed specifier as `origin.js`
+- [public/route.html](public/route.html) + [src/route-page.ts](src/route-page.ts)
+  — the route page (`/bus/:service`). The server injects the head tags, the
+  header (whose `<h1>` is the route) and `#rt-static`: the "at a glance" facts,
+  interchanges and stations, every stop per direction, related services and the
+  route's FAQ with matching FAQPage JSON-LD. **Google indexes the rendered DOM**,
+  so [public/route.js](public/route.js) must never remove `#rt-static` on the
+  live view (it only closes the stop-list `<details>`; removal is for the "no
+  such service" page alone) and must never overwrite a server-rendered
+  `<title>`. `src/route-page.test.ts` pins both at source level, and
+  `tools/crawl-check.mjs` checks the served pages
+- [public/route.js](public/route.js) — glue only, the `app.js` bargain, with
+  every rule in [public/route-logic.js](public/route-logic.js). One key of its
+  own (`bus-route.anchor.v1`); reads `origin.v1` and `loc.v1`; reads and writes
+  `pins.v1`. Upstream cost: the anchored window is one ≤ 5-code arrivals call
+  per 30 s, and the picker one 1-code call per 30 s for its "next from the first
+  stop" line. The home-screen offer stores nothing — "Not now" lasts the page
+  view
 - [src/index.ts](src/index.ts) — Express routes, input validation, static files
 - [src/stops.ts](src/stops.ts) — the whole stop list in memory; linear-scan
   nearest-neighbour, refreshed daily. A few thousand rows, so no index and no
