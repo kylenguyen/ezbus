@@ -9,15 +9,18 @@ import {
   buildRelated,
   buildRouteDescription,
   buildRouteFacts,
+  buildRouteFaq,
+  buildRouteFaqJsonLd,
   buildRouteHead,
   categoryLabel,
   fmtFreq,
   freqLine,
   keyStops,
-  operatorName,
-  rankRelated,
   buildRouteJsonLd,
   buildRouteStatic,
+  operatorName,
+  rankRelated,
+  routeFaq,
 } from './route-page.js';
 import { compareServiceNos } from './routes.js';
 import type { RouteDirectionPayload, RouteStopJoined } from './types.js';
@@ -439,6 +442,107 @@ describe('rankRelated', () => {
       ),
     );
     assert.equal(buildRelated([]), '');
+  });
+});
+
+describe('routeFaq', () => {
+  const places = keyStops(TRUNK_DIRECTIONS);
+  const faq = routeFaq(TRUNK, TRUNK_DIRECTIONS, places);
+  const answer = (start: string) => faq.find((item) => item.question.startsWith(start))?.answer;
+
+  it('asks the questions people type, in order', () => {
+    assert.deepEqual(
+      faq.map((item) => item.question),
+      [
+        'What time is the first and last bus 74?',
+        'How often does bus 74 come?',
+        'Where does bus 74 go?',
+        'Which company operates bus 74?',
+        'How do I check when bus 74 is coming?',
+      ],
+    );
+  });
+
+  it('answers first/last bus per direction and day, saying where the times apply', () => {
+    assert.equal(
+      answer('What time'),
+      'From Demo Stn Exit A: weekdays 05:30–23:30, Saturdays 05:35–23:35, Sundays 05:40–23:40. ' +
+        'From Demo Stn Exit B: weekdays 05:30–23:30, Saturdays 05:35–23:35, Sundays 05:40–23:40. ' +
+        'These are scheduled departures from the first stop; stops further along the route see the bus later.',
+    );
+  });
+
+  it('answers frequency with the windows, route with places passed, operator by name', () => {
+    assert.ok(answer('How often')?.startsWith('Bus 74 runs every 6–8 min in the morning peak (06:30–08:30), every 10–15 min'));
+    assert.equal(
+      answer('Where'),
+      'Bus 74 runs between Demo Stn Exit A and Demo Stn Exit B, calling at 2 stops over about 12.3 km one way. It passes Demo Stn.',
+    );
+    assert.equal(answer('Which company'), 'Bus 74 is run by SBS Transit as a trunk service.');
+  });
+
+  it('leaves out questions it cannot answer rather than answering vaguely', () => {
+    const bare = routeFaq(
+      { ...TRUNK, operator: '', category: '', freq: { peak: null, offpeak: null } },
+      [direction(1, TRUNK_DIRECTIONS[0]?.stops ?? [], { firstBus: null, lastBus: null, lengthKm: null })],
+      [],
+    );
+    assert.deepEqual(
+      bare.map((item) => item.question),
+      ['Where does bus 74 go?', 'How do I check when bus 74 is coming?'],
+    );
+    assert.equal(bare[0]?.answer, 'Bus 74 runs between Demo Stn Exit A and Demo Stn Exit B, calling at 2 stops.');
+  });
+
+  it('phrases a loop by where it turns, and lists several places naturally', () => {
+    const loopFaq = routeFaq(
+      LOOP,
+      [direction(1, [joined('10001', 1, 'Blk 101', 'Demo Ave 1'), joined('10001', 2, 'Blk 101', 'Demo Ave 1')])],
+      [
+        { name: 'A Int', code: '1', description: 'A Int', kind: 'interchange' },
+        { name: 'B Stn', code: '2', description: 'B Stn', kind: 'station' },
+        { name: 'C Stn', code: '3', description: 'C Stn', kind: 'station' },
+      ],
+    );
+    assert.equal(
+      loopFaq.find((item) => item.question.startsWith('Where'))?.answer,
+      'Bus 52 is a loop service from Blk 101, turning at Opp Blk 101, calling at 2 stops over about 12.3 km. It passes A Int, B Stn and C Stn.',
+    );
+  });
+
+  it('is empty without a direction', () => {
+    assert.deepEqual(routeFaq(TRUNK, [], []), []);
+  });
+});
+
+describe('buildRouteFaq and its JSON-LD', () => {
+  const items = [
+    { question: 'Q <one>?', answer: 'A & "one".' },
+    { question: 'Q two?', answer: 'A </script><script>x' },
+  ];
+
+  it('renders escaped disclosure rows under the route\'s questions heading', () => {
+    const html = buildRouteFaq('74', items);
+    assert.ok(html.startsWith('<h2 class="rt-sec">Bus 74 questions</h2>'));
+    assert.ok(html.includes('<details class="faq-item"><summary>Q &lt;one&gt;?</summary><p>A &amp; &quot;one&quot;.</p></details>'));
+    assert.equal(buildRouteFaq('74', []), '');
+  });
+
+  it('mirrors the visible text exactly in a parseable FAQPage, unbreakable by </script>', () => {
+    const tag = buildRouteFaqJsonLd(items);
+    const body = /^<script type="application\/ld\+json">(.*)<\/script>$/s.exec(tag)?.[1];
+    assert.ok(body, 'not a single JSON-LD script tag');
+    assert.ok(!body.includes('<'));
+    const parsed = JSON.parse(body) as {
+      '@type': string;
+      mainEntity: Array<{ name: string; acceptedAnswer: { text: string } }>;
+    };
+    assert.equal(parsed['@type'], 'FAQPage');
+    assert.deepEqual(
+      parsed.mainEntity.map((q) => [q.name, q.acceptedAnswer.text]),
+      items.map((item) => [item.question, item.answer]),
+    );
+    assert.equal(buildRouteFaqJsonLd([]), '');
   });
 });
 

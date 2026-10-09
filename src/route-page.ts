@@ -492,6 +492,7 @@ export const buildRouteStatic = (
   service: RouteStaticInfo,
   directions: RouteDirectionPayload[],
   related: RelatedRow[] = [],
+  faq: FaqItem[] = [],
 ): string => {
   if (directions.length === 0) return ROUTE_STATIC_TARGET;
   const no = escapeHtml(service.serviceNo);
@@ -534,8 +535,134 @@ export const buildRouteStatic = (
     `<h2 class="rt-sec">Bus ${no} — all stops</h2>` +
     cards +
     buildRelated(related) +
+    buildRouteFaq(service.serviceNo, faq) +
     `</section>`
   );
+};
+
+// --- questions ---------------------------------------------------------------------
+
+/** One question and its answer, plain text — escaped where rendered. */
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+const DAY_PHRASES: Array<['wd' | 'sat' | 'sun', string]> = [
+  ['wd', 'weekdays'],
+  ['sat', 'Saturdays'],
+  ['sun', 'Sundays'],
+];
+
+/** "A", "A and B", "A, B and C". */
+const listPhrase = (items: string[]): string =>
+  items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+
+/**
+ * The route's questions, answered from the same data as the facts card — the
+ * phrasings people type ("first bus 74", "how often does 74 come", "where does
+ * 74 go"). A question whose answer would be empty or a guess is left out, not
+ * answered vaguely. The last one is the honest pitch: what this page does that
+ * a timetable cannot.
+ *
+ * Plain strings, so the visible <details> and the FAQPage JSON-LD are built
+ * from the very same values — Google requires the two to match, and with one
+ * source they cannot drift.
+ */
+export const routeFaq = (
+  service: RouteStaticInfo,
+  directions: RouteDirectionPayload[],
+  places: KeyStop[],
+): FaqItem[] => {
+  const lead = directions[0];
+  if (!lead) return [];
+  const no = service.serviceNo;
+  const items: FaqItem[] = [];
+
+  const spans = directions
+    .map((direction) => {
+      const days = DAY_PHRASES.map(([day, phrase]) => {
+        const span = daySpan(direction.firstBus, direction.lastBus, day);
+        return span ? `${phrase} ${span.replace(' – ', '–')}` : '';
+      }).filter(Boolean);
+      return days.length === 0 ? '' : `From ${direction.origin.description}: ${days.join(', ')}.`;
+    })
+    .filter(Boolean);
+  if (spans.length > 0) {
+    items.push({
+      question: `What time is the first and last bus ${no}?`,
+      answer:
+        `${spans.join(' ')} These are scheduled departures from the first stop; ` +
+        `stops further along the route see the bus later.`,
+    });
+  }
+
+  const freq = freqLine(service.freq);
+  if (freq) {
+    items.push({
+      question: `How often does bus ${no} come?`,
+      answer:
+        `Bus ${no} runs ${freq}, according to LTA's published schedule. ` +
+        `Live arrival times for your stop are at the top of this page.`,
+    });
+  }
+
+  const length = fmtKm(lead.lengthKm);
+  const route = service.loop
+    ? `Bus ${no} is a loop service from ${lead.origin.description}` +
+      `${service.loopDesc ? `, turning at ${service.loopDesc}` : ''}, calling at ${lead.stops.length} stops` +
+      `${length ? ` over about ${length}` : ''}.`
+    : `Bus ${no} runs between ${lead.origin.description} and ${lead.destination.description}, ` +
+      `calling at ${lead.stops.length} stops${length ? ` over about ${length} one way` : ''}.`;
+  const passes = places.length > 0 ? ` It passes ${listPhrase(places.map((place) => place.name))}.` : '';
+  items.push({ question: `Where does bus ${no} go?`, answer: `${route}${passes}` });
+
+  if (service.operator) {
+    const category = categoryLabel(service.category);
+    items.push({
+      question: `Which company operates bus ${no}?`,
+      answer: `Bus ${no} is run by ${operatorName(service.operator)}${category ? ` as a ${category.toLowerCase()}` : ''}.`,
+    });
+  }
+
+  items.push({
+    question: `How do I check when bus ${no} is coming?`,
+    answer:
+      `Pick your stop on this page, or tap "Use my location", and ezbus shows live arrival times ` +
+      `for bus ${no} at that stop, how full the next bus is and roughly where it is on the route. ` +
+      `It's free, with no app to install and no sign-up.`,
+  });
+
+  return items;
+};
+
+/** The questions as disclosure rows — the homepage FAQ's markup and styles. */
+export const buildRouteFaq = (serviceNo: string, items: FaqItem[]): string => {
+  if (items.length === 0) return '';
+  const rows = items
+    .map(
+      (item) =>
+        `<details class="faq-item"><summary>${escapeHtml(item.question)}</summary>` +
+        `<p>${escapeHtml(item.answer)}</p></details>`,
+    )
+    .join('');
+  return `<h2 class="rt-sec">Bus ${escapeHtml(serviceNo)} questions</h2><div class="rt-faq">${rows}</div>`;
+};
+
+/** FAQPage JSON-LD from the same items — serialised, never concatenated, and
+ *  `<` escaped exactly as buildRouteJsonLd does. '' for no items. */
+export const buildRouteFaqJsonLd = (items: FaqItem[]): string => {
+  if (items.length === 0) return '';
+  const page = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: { '@type': 'Answer', text: item.answer },
+    })),
+  };
+  return `<script type="application/ld+json">${JSON.stringify(page).replace(/</g, '\\u003c')}</script>`;
 };
 
 // --- structured data ---------------------------------------------------------------

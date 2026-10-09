@@ -13,8 +13,11 @@ import {
   buildRouteDescription,
   buildRouteHead,
   buildRouteJsonLd,
+  buildRouteFaqJsonLd,
   buildRouteStatic,
+  keyStops,
   rankRelated,
+  routeFaq,
   type RelatedRow,
 } from './route-page.js';
 import { RouteIndex, compareServiceNos, type RouteDirection, type RouteService } from './routes.js';
@@ -633,19 +636,25 @@ app.get('/bus/:service', (req, res) => {
     );
     const description = escapeHtml(buildRouteDescription(service, directions));
     const url = `https://ezbus.sg/bus/${escapeHtml(service.serviceNo)}`;
+    // Function replacers throughout: a string replacement would expand `$&`
+    // and friends, and stop descriptions and category labels are feed data
+    // (FLAT FEE $1.10 is a real DataMall category).
     html = html
-      .replace(ROUTE_TITLE_TAG, `<title>${title}</title>`)
-      .replace(ROUTE_OG_TITLE_TAG, `<meta property="og:title" content="${title}" />`)
-      .replace(ROUTE_DESC_TAG, `<meta name="description" content="${description}" />`)
-      .replace(ROUTE_OG_DESC_TAG, `<meta property="og:description" content="${description}" />`)
-      .replace(ROUTE_OG_URL_TAG, `<meta property="og:url" content="${url}" />`)
-      .replace(ROUTE_CANONICAL_TAG, `<link rel="canonical" href="${url}" />`)
-      .replace(ROUTE_HEAD_TARGET, buildRouteHead(service, directions))
-      .replace(
-        ROUTE_STATIC_TARGET,
-        buildRouteStatic(service, directions, relatedRows(service, directions)) +
-          buildRouteJsonLd(service.serviceNo, lead.stops),
-      );
+      .replace(ROUTE_TITLE_TAG, () => `<title>${title}</title>`)
+      .replace(ROUTE_OG_TITLE_TAG, () => `<meta property="og:title" content="${title}" />`)
+      .replace(ROUTE_DESC_TAG, () => `<meta name="description" content="${description}" />`)
+      .replace(ROUTE_OG_DESC_TAG, () => `<meta property="og:description" content="${description}" />`)
+      .replace(ROUTE_OG_URL_TAG, () => `<meta property="og:url" content="${url}" />`)
+      .replace(ROUTE_CANONICAL_TAG, () => `<link rel="canonical" href="${url}" />`)
+      .replace(ROUTE_HEAD_TARGET, () => buildRouteHead(service, directions))
+      .replace(ROUTE_STATIC_TARGET, () => {
+        const faq = routeFaq(service, directions, keyStops(directions));
+        return (
+          buildRouteStatic(service, directions, relatedRows(service, directions), faq) +
+          buildRouteJsonLd(service.serviceNo, lead.stops) +
+          buildRouteFaqJsonLd(faq)
+        );
+      });
   }
 
   res.set('Cache-Control', STATIC_CACHE_CONTROL).type('html').send(html);
