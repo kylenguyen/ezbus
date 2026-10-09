@@ -5,12 +5,14 @@ import { describe, it } from 'node:test';
 import {
   ROUTE_HEAD_TARGET,
   ROUTE_STATIC_TARGET,
+  buildKeyStops,
   buildRouteDescription,
   buildRouteFacts,
   buildRouteHead,
   categoryLabel,
   fmtFreq,
   freqLine,
+  keyStops,
   operatorName,
   buildRouteJsonLd,
   buildRouteStatic,
@@ -324,6 +326,68 @@ describe('buildRouteFacts', () => {
 
   it('renders nothing for empty input', () => {
     assert.equal(buildRouteFacts(TRUNK, []), '');
+  });
+});
+
+describe('keyStops', () => {
+  const route = (names: string[]) =>
+    direction(
+      1,
+      names.map((name, i) => joined(String(10001 + i), i + 1, name, 'Some Rd')),
+    );
+
+  it('picks interchanges and stations, normalised and in route order', () => {
+    const found = keyStops([
+      route(['Toa Payoh Int', 'Blk 123', 'Opp Bishan Stn', 'Bishan Stn Exit A', 'Aft Braddell Stn', 'Sengkang Interchange']),
+    ]);
+    assert.deepEqual(
+      found.map((stop) => [stop.name, stop.code, stop.kind]),
+      [
+        ['Toa Payoh Int', '10001', 'interchange'],
+        ['Bishan Stn', '10003', 'station'],
+        ['Braddell Stn', '10005', 'station'],
+        ['Sengkang Interchange', '10006', 'interchange'],
+      ],
+    );
+    assert.equal(found[1]?.description, 'Opp Bishan Stn', 'first sighting keeps its own description');
+  });
+
+  it('does not mistake schools, roads or other stations for interchanges or MRT stations', () => {
+    const found = keyStops([
+      route([
+        'Opp Canadian Int Sch',
+        'Int Bus Pk',
+        'Stn Rd',
+        'Opp Bishan Fire Stn',
+        'Bef Ang Mo Kio Police Stn',
+        'Aft Esso Stn',
+        'Bt Panjang Petrol Stn',
+        'Tuas Pumping Stn',
+      ]),
+    ]);
+    assert.deepEqual(found, []);
+  });
+
+  it('adds places only the second direction passes, after the first direction\'s', () => {
+    const d1 = route(['Bishan Stn', 'Toa Payoh Int']);
+    const d2 = direction(2, [joined('20001', 1, 'Opp Toa Payoh Int', 'X'), joined('20002', 2, 'Caldecott Stn Exit 2', 'Y')]);
+    assert.deepEqual(
+      keyStops([d1, d2]).map((stop) => stop.name),
+      ['Bishan Stn', 'Toa Payoh Int', 'Caldecott Stn'],
+    );
+  });
+
+  it('caps the list at ten places', () => {
+    const many = route(Array.from({ length: 14 }, (_, i) => `Place${i} Stn`));
+    assert.equal(keyStops([many]).length, 10);
+  });
+
+  it('renders linked rows, escaped, and nothing at all when none were found', () => {
+    const html = buildKeyStops('74', keyStops([route(['Opp A<b> Stn', 'Toa Payoh Int'])]));
+    assert.ok(html.includes('<h2 class="rt-sec">Interchanges &amp; stations on bus 74</h2>'));
+    assert.ok(html.includes('<a href="/stop/10001"><span class="nb-name">A&lt;b&gt; Stn</span><span class="nb-sub">Opp A&lt;b&gt; Stn</span></a>'));
+    assert.ok(html.includes('<span class="nb-name">Toa Payoh Int</span><span class="nb-sub">Bus interchange</span>'));
+    assert.equal(buildKeyStops('74', []), '');
   });
 });
 

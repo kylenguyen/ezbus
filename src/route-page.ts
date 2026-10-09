@@ -205,6 +205,81 @@ export const buildRouteHead = (
 
 // --- the static body -------------------------------------------------------------
 
+// --- interchanges and stations -------------------------------------------------------
+
+/** One place a route passes that riders navigate by, linked to the first stop
+ *  that names it. */
+export interface KeyStop {
+  /** The place, normalised: "Bishan Stn", never "Opp Bishan Stn Exit A". */
+  name: string;
+  code: string;
+  /** The stop's own description, for the row's secondary line. */
+  description: string;
+  kind: 'interchange' | 'station';
+}
+
+const KEY_STOP_PREFIX = /^(?:opp|aft|bef|nr)\s+/i;
+const KEY_STOP_EXIT = /\s+exit\s+[a-z0-9]+$/i;
+const INTERCHANGE_RE = /\b(?:int|interchange)$/i;
+const STATION_RE = /\bstn$/i;
+/** "Stn" that is not a train station. Stop names abbreviate these the same way. */
+const NOT_A_TRAIN_STATION_RE =
+  /\b(?:fire|police|petrol|power|pumping|sub|ambulance|radio|esso|shell|caltex|spc|sinopec)\s+stn$/i;
+const KEY_STOP_MAX = 10;
+
+/**
+ * The bus interchanges and MRT/LRT stations a route passes, read off LTA's stop
+ * descriptions — "Toa Payoh Int", "Opp Bishan Stn", "Bishan Stn Exit A" — which
+ * is the only source we have: nothing in DataMall's bus feeds says "this stop
+ * serves a station". A heuristic, then, and a conservative one: the place word
+ * must END the name once a leading Opp/Aft/Bef/Nr and a trailing "Exit X" are
+ * stripped, so "Int Sch" (an international school) and "Stn Rd" never qualify,
+ * and "Stn" after fire/police/petrol and friends is excluded. It can miss a
+ * station whose stops are named after a mall instead; it should not invent one.
+ *
+ * Deduplicated by the normalised name (the kerb pair and every exit of one
+ * station are one place), first sighting wins — direction 1 in route order,
+ * then anything only direction 2 passes. Capped, because a list of 25 places is
+ * a second route listing rather than a summary.
+ */
+export const keyStops = (directions: RouteDirectionPayload[]): KeyStop[] => {
+  const seen = new Map<string, KeyStop>();
+  for (const direction of directions) {
+    for (const stop of direction.stops) {
+      if (seen.size >= KEY_STOP_MAX) break;
+      const name = stop.description.trim().replace(KEY_STOP_PREFIX, '').replace(KEY_STOP_EXIT, '').trim();
+      const kind = INTERCHANGE_RE.test(name)
+        ? 'interchange'
+        : STATION_RE.test(name) && !NOT_A_TRAIN_STATION_RE.test(name)
+          ? 'station'
+          : null;
+      if (!kind) continue;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) seen.set(key, { name, code: stop.code, description: stop.description, kind });
+    }
+  }
+  return [...seen.values()];
+};
+
+/** The linked list of key stops, or '' when the heuristic found none. */
+export const buildKeyStops = (serviceNo: string, stops: KeyStop[]): string => {
+  if (stops.length === 0) return '';
+  const rows = stops
+    .map((stop) => {
+      const sub = stop.description !== stop.name ? stop.description : stop.kind === 'interchange' ? 'Bus interchange' : 'Station';
+      return (
+        `<li><a href="/stop/${escapeHtml(stop.code)}">` +
+        `<span class="nb-name">${escapeHtml(stop.name)}</span>` +
+        `<span class="nb-sub">${escapeHtml(sub)}</span></a></li>`
+      );
+    })
+    .join('');
+  return (
+    `<h2 class="rt-sec">Interchanges &amp; stations on bus ${escapeHtml(serviceNo)}</h2>` +
+    `<div class="card"><ul class="rt-stops">${rows}</ul></div>`
+  );
+};
+
 // --- the facts ---------------------------------------------------------------------
 
 const DAY_ROWS: Array<['wd' | 'sat' | 'sun', string]> = [
@@ -381,6 +456,7 @@ export const buildRouteStatic = (
   return (
     `<section id="rt-static" aria-label="About bus ${no}">` +
     buildRouteFacts(service, directions) +
+    buildKeyStops(service.serviceNo, keyStops(directions)) +
     `<h2 class="rt-sec">Bus ${no} — all stops</h2>` +
     cards +
     `</section>`
