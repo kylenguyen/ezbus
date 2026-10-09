@@ -57,6 +57,14 @@ const el = {
 /** The service in the URL, or null for a path the API would 400 anyway. */
 const serviceNo = parseServicePath(location.pathname);
 
+/**
+ * Whether /bus/:service injected the real header (and with it the keyword
+ * title and canonical). Read once at boot, before anything rewrites #rt-head.
+ * When true the server's <title> is the one search engines index, and this
+ * page must not overwrite it with a different string.
+ */
+const serverHead = el.head.hasAttribute('data-ssr');
+
 /** The /api/route response body, once it lands. */
 let route = null;
 /** Index into route.directions — which direction the page is showing. */
@@ -224,6 +232,9 @@ async function loadRoute() {
       return;
     }
     route = data;
+    // A shell served unreplaced (route index cold when the HTML was built)
+    // still carries the generic title; name the service now that it is known.
+    if (!serverHead) document.title = `bus ${route.serviceNo} timing & route · ezbus`;
     applyLadder();
   } catch {
     renderFailed();
@@ -382,11 +393,14 @@ function renderHead() {
           .join('')}</div>`
       : '';
 
+  // The same markup buildRouteHead in src/route-page.ts renders on the server
+  // — edit the two together. The h1 restates the aria-hidden stencil number in
+  // a visually-hidden prefix, so the heading reads "Bus 74: A → B".
   el.head.innerHTML = `
     <div class="rt-head">
-      <span class="rt-no">${escape(route.serviceNo)}</span>
+      <span class="rt-no" aria-hidden="true">${escape(route.serviceNo)}</span>
       <div class="rt-title">
-        <span class="rt-ends">${ends}</span>
+        <h1 class="rt-ends"><span class="visually-hidden">Bus ${escape(route.serviceNo)}: </span>${ends}</h1>
         <span class="rt-meta">${escape(meta)}</span>
       </div>
     </div>
@@ -853,7 +867,9 @@ function renderMissing(svc) {
 
 function renderFailed() {
   mode = 'failed';
-  el.head.innerHTML = '';
+  // A server-rendered header is still true on a dead connection — the same
+  // reason dropStatic leaves the static route in place here.
+  if (!serverHead) el.head.innerHTML = '';
   el.notices.innerHTML = '';
   el.body.innerHTML = `
     <div class="guard">Could not load this route. Check your connection.
@@ -1116,6 +1132,5 @@ setInterval(() => {
 if (!serviceNo) {
   renderMissing(null);
 } else {
-  document.title = `bus ${serviceNo} route & arrivals · ezbus`;
   void loadRoute();
 }

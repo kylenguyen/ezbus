@@ -7,7 +7,13 @@ import { BUSES_LIST_TARGET, buildBusesIndex } from './buses-page.js';
 import { config, mockMode } from './config.js';
 import { upstreamStats } from './lta.js';
 import { PlaceIndex } from './places.js';
-import { ROUTE_STATIC_TARGET, buildRouteJsonLd, buildRouteStatic } from './route-page.js';
+import {
+  ROUTE_HEAD_TARGET,
+  ROUTE_STATIC_TARGET,
+  buildRouteHead,
+  buildRouteJsonLd,
+  buildRouteStatic,
+} from './route-page.js';
 import { RouteIndex, type RouteDirection, type RouteService } from './routes.js';
 import { buildSitemap } from './sitemap.js';
 import {
@@ -611,6 +617,7 @@ app.get('/bus/:service', (req, res) => {
       .replace(ROUTE_OG_DESC_TAG, `<meta property="og:description" content="${description}" />`)
       .replace(ROUTE_OG_URL_TAG, `<meta property="og:url" content="${url}" />`)
       .replace(ROUTE_CANONICAL_TAG, `<link rel="canonical" href="${url}" />`)
+      .replace(ROUTE_HEAD_TARGET, buildRouteHead(service, directions))
       .replace(
         ROUTE_STATIC_TARGET,
         buildRouteStatic(service, directions) + buildRouteJsonLd(service.serviceNo, lead.stops),

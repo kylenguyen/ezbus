@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-import { ROUTE_STATIC_TARGET, buildRouteJsonLd, buildRouteStatic } from './route-page.js';
+import {
+  ROUTE_HEAD_TARGET,
+  ROUTE_STATIC_TARGET,
+  buildRouteHead,
+  buildRouteJsonLd,
+  buildRouteStatic,
+} from './route-page.js';
 import type { RouteDirectionPayload, RouteStopJoined } from './types.js';
 
 /**
@@ -199,17 +205,104 @@ describe('buildRouteJsonLd', () => {
   });
 });
 
+describe('buildRouteHead', () => {
+  const html = buildRouteHead(TRUNK, TRUNK_DIRECTIONS);
+
+  it('makes the route the page\'s one h1, restating the number for readers and crawlers', () => {
+    assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+    assert.ok(
+      html.includes(
+        '<h1 class="rt-ends"><span class="visually-hidden">Bus 74: </span>Demo Stn Exit A → Demo Stn Exit B</h1>',
+      ),
+    );
+    // The stencil number is shown, but hidden from AT so it is not read twice.
+    assert.ok(html.includes('<span class="rt-no" aria-hidden="true">74</span>'));
+  });
+
+  it('marks itself server-rendered and carries the lead direction\'s meta line', () => {
+    assert.ok(html.startsWith('<div id="rt-head" data-ssr="1">'));
+    assert.ok(html.includes('<span class="rt-meta">2 stops · runs 05:30–23:30</span>'));
+  });
+
+  it('emits the direction toggle with the lead direction pressed', () => {
+    const buttons = [...html.matchAll(/<button[^>]*data-dir="(\d)"[^>]*class="(on)?"[^>]*aria-pressed="(true|false)">([^<]*)<\/button>/g)];
+    assert.deepEqual(
+      buttons.map((m) => [m[1], m[2] ?? '', m[3], m[4]]),
+      [
+        ['1', 'on', 'true', 'to Demo Stn Exit B'],
+        ['2', '', 'false', 'to Demo Stn Exit A'],
+      ],
+    );
+  });
+
+  it('gives a loop its badge and "loop service" ends, never a toggle', () => {
+    const loopHtml = buildRouteHead(LOOP, [
+      direction(1, [joined('10001', 1, 'Blk 101', 'Demo Ave 1'), joined('10001', 2, 'Blk 101', 'Demo Ave 1')]),
+    ]);
+    assert.ok(loopHtml.includes('Blk 101 — loop service</h1>'));
+    assert.ok(loopHtml.includes('<p class="loop-badge">⟲ Loop at Opp Blk 101</p>'));
+    assert.ok(!loopHtml.includes('dir-toggle'));
+  });
+
+  it('drops the "runs" span when the feed has no weekday schedule', () => {
+    const bare = buildRouteHead(TRUNK, [
+      direction(1, TRUNK_DIRECTIONS[0]?.stops ?? [], { firstBus: null, lastBus: null }),
+    ]);
+    assert.ok(bare.includes('<span class="rt-meta">2 stops</span>'));
+    assert.ok(!bare.includes('dir-toggle'), 'one direction, no toggle');
+  });
+
+  it('escapes the service number and descriptions', () => {
+    const nasty = buildRouteHead({ ...TRUNK, serviceNo: '7<4' }, [
+      direction(1, [joined('10011', 1, 'A <b>', 'Rd'), joined('10019', 2, 'B & "C"', 'Rd')]),
+    ]);
+    assert.ok(nasty.includes('Bus 7&lt;4: </span>A &lt;b&gt; → B &amp; &quot;C&quot;</h1>'));
+    assert.ok(!nasty.includes('<b>'));
+  });
+
+  it('collapses to the shell skeleton for empty input', () => {
+    assert.equal(buildRouteHead(TRUNK, []), ROUTE_HEAD_TARGET);
+  });
+});
+
+describe('route page heading and title invariants', () => {
+  const shell = readFileSync(new URL('../public/route.html', import.meta.url), 'utf8');
+  const script = readFileSync(new URL('../public/route.js', import.meta.url), 'utf8');
+
+  // The global `h1` rule styles the wordmark; on a page whose h1 is the route,
+  // the wordmark must be the <p class="wordmark"> stop.html already uses, or
+  // the page carries two h1s and the route is not the heading.
+  it('the shell\'s only h1 is the generic hidden one inside the head target', () => {
+    const h1s = shell.replace(/<!--[\s\S]*?-->/g, '').match(/<h1\b[^>]*>/g) ?? [];
+    assert.deepEqual(h1s, ['<h1 class="visually-hidden">']);
+    assert.ok(shell.includes('<p class="wordmark"><a href="/"'));
+  });
+
+  it('route.js renders the same h1 as the server', () => {
+    assert.ok(script.includes('<h1 class="rt-ends"><span class="visually-hidden">Bus ${escape(route.serviceNo)}: </span>${ends}</h1>'));
+    assert.ok(script.includes('<span class="rt-no" aria-hidden="true">'));
+  });
+
+  // Google indexes the rendered DOM: a boot-time document.title would replace
+  // the injected keyword title for every crawl of every route.
+  it('route.js only names the tab when the server did not', () => {
+    assert.ok(!script.includes('route & arrivals · ezbus'), 'the old unconditional title is back');
+    assert.match(script, /if \(!serverHead\) document\.title =/);
+  });
+});
+
 describe('shell pairing', () => {
   // The whole injection pattern rests on the shell and the constant matching
   // byte for byte — an edit to one side without the other fails silently as a
   // page that simply stops being injected, which curl in mock mode catches
   // but this catches first and names.
-  it('the swap target appears verbatim, exactly once, in public/route.html', () => {
-    const shell = readFileSync(new URL('../public/route.html', import.meta.url), 'utf8');
-    assert.equal(
-      shell.split(ROUTE_STATIC_TARGET).length,
-      2,
-      `target missing or duplicated: ${ROUTE_STATIC_TARGET.slice(0, 60)}…`,
-    );
-  });
+  for (const [name, target] of [
+    ['ROUTE_HEAD_TARGET', ROUTE_HEAD_TARGET],
+    ['ROUTE_STATIC_TARGET', ROUTE_STATIC_TARGET],
+  ] as const) {
+    it(`${name} appears verbatim, exactly once, in public/route.html`, () => {
+      const shell = readFileSync(new URL('../public/route.html', import.meta.url), 'utf8');
+      assert.equal(shell.split(target).length, 2, `target missing or duplicated: ${target.slice(0, 60)}…`);
+    });
+  }
 });

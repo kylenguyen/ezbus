@@ -1895,8 +1895,14 @@ a.card-link {
   min-width: 0;
 }
 
+/* The page's h1 on the route page (buildRouteHead / renderHead), so it restates
+   what the global h1 rule sets for the wordmark: body face, normal tracking.
+   A destination is prose, not a number matched against the world. */
 .rt-ends {
   display: block;
+  margin: 0;
+  font-family: var(--sans);
+  letter-spacing: normal;
   font-weight: 650;
   font-size: 0.92rem;
   line-height: 1.25;

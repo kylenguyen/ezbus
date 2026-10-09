@@ -24,7 +24,12 @@ import type { RouteDirectionPayload, RouteStopJoined, RouteStopTimes } from './t
  * off this section is the page.
  */
 
-// --- the swap target, verbatim from public/route.html -------------------------
+// --- the swap targets, verbatim from public/route.html ------------------------
+
+/** The header's skeleton plus a generic hidden h1 — the wait state, kept for a
+ *  shell served unreplaced. Known services swap it for buildRouteHead. */
+export const ROUTE_HEAD_TARGET =
+  '<div id="rt-head"><h1 class="visually-hidden">Singapore bus timing &amp; routes</h1><div class="rt-head skeleton" aria-hidden="true"><span class="sk sk-rtno"></span><div class="rt-title"><span class="sk sk-name"></span><span class="sk sk-sub"></span></div></div></div>';
 
 /** The generic invite to the board — the no-JS sentence for a shell served
  *  unreplaced. Known services swap it for the full route plus JSON-LD. */
@@ -75,6 +80,66 @@ const timesLine = (direction: RouteDirectionPayload): string => {
     .filter((entry): entry is [string, string] => entry[1] !== null)
     .map(([label, span]) => `${label} ${span}`);
   return parts.length === 0 ? '' : `first bus – last: ${parts.join(' · ')}`;
+};
+
+// --- the header ----------------------------------------------------------------
+
+/**
+ * The route header, server-rendered — the markup route.js's renderHead builds
+ * for the lead direction, so the first paint is the answer and the client's
+ * rewrite on /api/route lands on the same pixels. **The two must stay in
+ * step**: edit this and renderHead in public/route.js together.
+ *
+ * The h1 is the ends line, restating the stencilled number in a
+ * visually-hidden prefix — the stop plate's idiom — so the page's heading
+ * reads "Bus 74: A → B" to a screen reader and to a crawler, while the plate
+ * keeps the number-leads layout. The number itself is aria-hidden so it is
+ * not announced twice.
+ *
+ * `data-ssr` on the wrapper tells route.js the head (and therefore the title)
+ * came from the server. The direction toggle is emitted too, inert until
+ * route.js wires it: leaving it out would make the header jump a row the
+ * moment the script lands. Empty input collapses to the shell's skeleton.
+ */
+export const buildRouteHead = (
+  service: RouteStaticInfo,
+  directions: RouteDirectionPayload[],
+): string => {
+  const lead = directions[0];
+  if (!lead) return ROUTE_HEAD_TARGET;
+  const no = escapeHtml(service.serviceNo);
+  const ends = service.loop
+    ? `${escapeHtml(lead.origin.description)} — loop service`
+    : `${escapeHtml(lead.origin.description)} → ${escapeHtml(lead.destination.description)}`;
+  const first = lead.firstBus ? fmtHHMM(lead.firstBus.wd) : null;
+  const last = lead.lastBus ? fmtHHMM(lead.lastBus.wd) : null;
+  const meta = [`${lead.stops.length} stops`, first && last ? `runs ${first}–${last}` : '']
+    .filter(Boolean)
+    .join(' · ');
+  const toggle = service.loop
+    ? `<p class="loop-badge">⟲ Loop at ${escapeHtml(service.loopDesc || lead.destination.description)}</p>`
+    : directions.length > 1
+      ? `<div class="dir-toggle" role="group" aria-label="Direction of travel">` +
+        directions
+          .map(
+            (direction, index) =>
+              `<button type="button" data-act="dir" data-dir="${direction.direction}"` +
+              ` class="${index === 0 ? 'on' : ''}" aria-pressed="${index === 0}">` +
+              `to ${escapeHtml(direction.destination.description)}</button>`,
+          )
+          .join('') +
+        `</div>`
+      : '';
+  return (
+    `<div id="rt-head" data-ssr="1">` +
+    `<div class="rt-head"><span class="rt-no" aria-hidden="true">${no}</span>` +
+    `<div class="rt-title">` +
+    `<h1 class="rt-ends"><span class="visually-hidden">Bus ${no}: </span>${ends}</h1>` +
+    `<span class="rt-meta">${escapeHtml(meta)}</span>` +
+    `</div></div>` +
+    toggle +
+    `</div>`
+  );
 };
 
 // --- the static body -------------------------------------------------------------

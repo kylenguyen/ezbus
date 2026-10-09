@@ -58,8 +58,9 @@
       <div class="masthead-row">
         <!-- Same wordmark as the board, but a link: on this page it is the way
              back as well as the name, and the board is one tap away wherever
-             you are in the route. -->
-        <h1><a href="/" aria-label="ezbus — back to the arrivals board"><span class="mark-ez">ez</span><span>bus</span></a></h1>
+             you are in the route. A <p>, as on stop.html: this page's h1 is
+             the route itself, inside the header below. -->
+        <p class="wordmark"><a href="/" aria-label="ezbus — back to the arrivals board"><span class="mark-ez">ez</span><span>bus</span></a></p>
       </div>
     </header>
 
@@ -67,17 +68,15 @@
       <p class="back"><a href="/">← Back to board</a></p>
 
       <!-- The route header: number, ends, meta, and the direction toggle (or the
-           loop badge). route.js rewrites this once /api/route lands; until then
-           it holds the header's skeleton so the wait has the answer's shape. -->
-      <div id="rt-head">
-        <div class="rt-head skeleton" aria-hidden="true">
-          <span class="sk sk-rtno"></span>
-          <div class="rt-title">
-            <span class="sk sk-name"></span>
-            <span class="sk sk-sub"></span>
-          </div>
-        </div>
-      </div>
+           loop badge), with the route as the page's <h1>. A server-swapped
+           region like #rt-static below: /bus/:service replaces the whole block,
+           by exact string match against ROUTE_HEAD_TARGET in src/route-page.ts,
+           with the real header (marked data-ssr), so the first paint is the
+           answer rather than a skeleton. Served unreplaced, it is this skeleton
+           plus a generic hidden h1. route.js rewrites it once /api/route lands.
+           Keep the block on one line, and edit it and its constant in the same
+           commit, or the injection silently stops. -->
+      <div id="rt-head"><h1 class="visually-hidden">Singapore bus timing &amp; routes</h1><div class="rt-head skeleton" aria-hidden="true"><span class="sk sk-rtno"></span><div class="rt-title"><span class="sk sk-name"></span><span class="sk sk-sub"></span></div></div></div>
 
       <!-- Provenance chips, stale-stop notices, the keep chip: everything that
            explains where the anchor came from or offers the way back. -->
