@@ -438,7 +438,7 @@ describe('rankRelated', () => {
     assert.ok(html.includes('<h2 class="rt-sec">Other buses along this route</h2>'));
     assert.ok(
       html.includes(
-        '<li><a href="/bus/151"><span class="service-no">151</span><span class="nb-name">A &lt;x&gt; → B</span><span class="nb-sub">4 stops in common</span></a></li>',
+        '<li><a href="/bus/151"><span class="service-no">151</span><span class="nb-name">A &lt;x&gt; → B</span><span class="nb-sub">4 shared</span></a></li>',
       ),
     );
     assert.equal(buildRelated([]), '');

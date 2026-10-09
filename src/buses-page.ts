@@ -1,4 +1,4 @@
-import { operatorName } from './route-page.js';
+import { operatorShortName } from './route-page.js';
 import { escapeHtml } from './stop-page.js';
 
 /**
@@ -83,7 +83,7 @@ export const buildBusesIndex = (rows: BusesRow[]): string => {
           : '';
       const name = summary ? `<span class="nb-name">${summary}</span>` : '';
       const operator = row.operator
-        ? `<span class="nb-sub">${escapeHtml(operatorName(row.operator))}</span>`
+        ? `<span class="nb-sub">${escapeHtml(operatorShortName(row.operator))}</span>`
         : '';
       const range = busRange(row.serviceNo);
       // First row of each range carries the anchor. Checked against every

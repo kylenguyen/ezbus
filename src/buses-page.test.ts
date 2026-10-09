@@ -56,9 +56,12 @@ describe('buildBusesIndex', () => {
     assert.ok(bare.includes('<span class="nb-name">⟲ Loop at Blk 101</span>'));
   });
 
-  it('trails the operator by the name riders know, and omits the span when the feed gave none', () => {
-    assert.ok(html.includes('<span class="nb-sub">SMRT Buses</span>'));
+  it('trails the operator by its short public name, and omits the span when the feed gave none', () => {
+    assert.ok(html.includes('<span class="nb-sub">SMRT</span>'));
     assert.ok(html.includes('<span class="nb-sub">SBS Transit</span>'));
+    const others = buildBusesIndex([row({ serviceNo: '1', operator: 'TTS' }), row({ serviceNo: '2', operator: 'GAS' })]);
+    assert.ok(others.includes('<span class="nb-sub">Tower Transit</span>'));
+    assert.ok(others.includes('<span class="nb-sub">Go-Ahead</span>'));
     const anon = buildBusesIndex([row({ serviceNo: '74', operator: '' })]);
     assert.ok(!anon.includes('nb-sub'));
   });

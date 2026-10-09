@@ -91,6 +91,21 @@ export const operatorName = (code: string): string =>
   Object.hasOwn(OPERATOR_NAMES, code) ? (OPERATOR_NAMES[code] ?? code) : code;
 
 /**
+ * The same operators in as few characters as still read as the name — for a
+ * row where the operator trails a route summary on a 320 px phone (/buses):
+ * "Tower Transit Singapore" there squeezed the route ends down to "Test…".
+ */
+const OPERATOR_SHORT_NAMES: Record<string, string> = {
+  SBST: 'SBS Transit',
+  SMRT: 'SMRT',
+  TTS: 'Tower Transit',
+  GAS: 'Go-Ahead',
+};
+
+export const operatorShortName = (code: string): string =>
+  Object.hasOwn(OPERATOR_SHORT_NAMES, code) ? (OPERATOR_SHORT_NAMES[code] ?? code) : code;
+
+/**
  * DataMall `Category` as a phrase: the guide lists EXPRESS, FEEDER,
  * INDUSTRIAL, TOWNLINK, TRUNK and a family of flat-fee categories. The named
  * five read as "Trunk service" and so on; anything else (a flat-fee label, a
@@ -343,7 +358,7 @@ export const buildRelated = (rows: RelatedRow[]): string => {
       const name = row.summary ? `<span class="nb-name">${escapeHtml(row.summary)}</span>` : '';
       return (
         `<li><a href="/bus/${no}"><span class="service-no">${no}</span>${name}` +
-        `<span class="nb-sub">${row.shared} stops in common</span></a></li>`
+        `<span class="nb-sub">${row.shared} shared</span></a></li>`
       );
     })
     .join('');
