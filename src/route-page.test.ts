@@ -510,6 +510,12 @@ describe('routeFaq', () => {
     );
   });
 
+  it('ends with what the page does, pointing at the pin the panel offers', () => {
+    const pitch = answer('How do I check');
+    assert.ok(pitch?.includes('live arrival times for bus 74 at that stop'));
+    assert.ok(pitch?.endsWith('if you pin the stop, it is waiting on your ezbus board next time.'));
+  });
+
   it('is empty without a direction', () => {
     assert.deepEqual(routeFaq(TRUNK, [], []), []);
   });

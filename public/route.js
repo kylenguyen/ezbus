@@ -11,6 +11,9 @@
 //   bus-board.loc.v1      the last GPS fix — read for the anchor ladder, and
 //                         written on a successful fix from this page's location
 //                         door, the same {lat, lon, at} shape app.js writes
+//   bus-board.pins.v1     the board's pinned stops — read and written by the
+//                         anchor panel's Pin button, the same rows app.js and
+//                         stop.js write: pin here is pin on the board
 
 import {
   formatMetres,
@@ -27,12 +30,15 @@ import {
   filterServiceEta,
   foldPlan,
   haversineM,
+  isPinnedCode,
   markTarget,
   parseServicePath,
   readAnchors,
+  readPinList,
   rememberAnchor,
   resolveAnchor,
   searchStops,
+  togglePinList,
   translateAnchor,
   UPSTREAM_WINDOW,
   windowFor,
@@ -42,6 +48,7 @@ import { VEHICLE, vehicleIcon } from './vehicle-marks.js';
 const ANCHOR_KEY = 'bus-route.anchor.v1';
 const ORIGIN_KEY = 'bus-board.origin.v1';
 const LOC_KEY = 'bus-board.loc.v1';
+const PINS_KEY = 'bus-board.pins.v1';
 
 const REFRESH_MS = 30_000; // arrivals refetch — one batch of ≤ 5 codes
 const TICK_MS = 10_000; // local re-render so minutes count down between fetches
@@ -775,9 +782,35 @@ function renderWindow() {
         <button type="button" class="hp-change" data-act="change">Change</button>
       </div>
       ${panelServices(stop.code, now)}
+      ${panelActions(stop)}
     </div>
     <ul class="spine">${below.join('')}</ul>
     <p class="honesty">${escape(BUS_POSITION_LABEL)}</p>`;
+}
+
+/**
+ * Under the live rows, the two ways on from here — the moment the page has
+ * just proved itself is the moment to say what else it does. Pin puts this
+ * stop on the board (the same key and rows the board and the stop page
+ * write), so opening ezbus.sg next time starts here; once pinned, the row
+ * offers the board itself. "All buses here" is the stop page: every service at
+ * this kerb, not just this one. Pinned state is read fresh from storage on
+ * every draw, so a pin made in another tab is not clobbered by a stale copy.
+ */
+function panelActions(stop) {
+  const pinned = isPinnedCode(readPinList(readRaw(PINS_KEY)), stop.code);
+  const pin = `<button type="button" class="hp-act${pinned ? ' on' : ''}" data-act="pin" aria-pressed="${pinned}">${
+    pinned ? '★ On your board' : '☆ Pin to your board'
+  }</button>`;
+  const board = pinned ? '<a class="hp-act" href="/">Open board</a>' : '';
+  return `<div class="hp-acts">${pin}${board}<a class="hp-act" href="/stop/${escape(stop.code)}">All buses here ›</a></div>`;
+}
+
+function togglePin() {
+  const stop = effectiveStop();
+  if (!stop) return;
+  write(PINS_KEY, togglePinList(readPinList(readRaw(PINS_KEY)), stop));
+  renderBody();
 }
 
 // --- the picker -------------------------------------------------------------------
@@ -1212,6 +1245,9 @@ function onAction(event) {
       case 'retry':
         mode = 'loading';
         void loadRoute();
+        return;
+      case 'pin':
+        if (mode === 'anchored') togglePin();
         return;
     }
   }

@@ -3159,3 +3159,33 @@ h2.rt-sec {
   color: var(--muted);
   font-size: 0.82rem;
 }
+
+/* The anchor panel's way-on row: Pin, (Open board), All buses here. Text
+   buttons in the accent — the guard's `.g-actions` idiom — on a hairline under
+   the arrivals, each a 44px target. `.on` is the pinned state: still the
+   accent family, it is a choice the rider made, not a crowding fact. */
+.hp-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+  padding: 0 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+.hp-act {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.hp-act:last-child {
+  margin-left: auto;
+}

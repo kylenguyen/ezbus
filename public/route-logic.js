@@ -583,6 +583,43 @@ export function filterServiceEta(entry, serviceNo) {
 }
 
 /**
+ * The board's pinned stops, parsed from the raw `bus-board.pins.v1` string by
+ * app.js's own rule: an array, keeping only rows with a string `code`.
+ * Corrupt or absent storage reads as no pins — never a throw, never a reset
+ * written back.
+ *
+ * @param {string | null | undefined} raw
+ * @returns {Array<{code: string, description?: string, roadName?: string}>}
+ */
+export function readPinList(raw) {
+  try {
+    const parsed = JSON.parse(raw ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((row) => row && typeof row.code === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** @param {Array<{code: string}>} pins @param {unknown} code */
+export function isPinnedCode(pins, code) {
+  return pins.some((row) => row.code === code);
+}
+
+/**
+ * Pins or unpins one stop, returning a new list — the row shape app.js and
+ * stop.js write (`{code, description, roadName}`), appended last, which is
+ * where the board puts a new pin. Rows the route page knows nothing about are
+ * carried through untouched.
+ *
+ * @param {Array<{code: string}>} pins
+ * @param {{code: string, description: string, roadName?: string}} stop
+ */
+export function togglePinList(pins, stop) {
+  if (isPinnedCode(pins, stop.code)) return pins.filter((row) => row.code !== stop.code);
+  return [...pins, { code: stop.code, description: stop.description, roadName: stop.roadName ?? '' }];
+}
+
+/**
  * The picker's "next from the first stop" line, decided. A visitor who has not
  * chosen a stop yet — most arrivals from a search — otherwise sees no live
  * timing at all until they pick one; the route's first stop is the one place

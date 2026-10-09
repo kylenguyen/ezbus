@@ -630,7 +630,8 @@ export const routeFaq = (
     answer:
       `Pick your stop on this page, or tap "Use my location", and ezbus shows live arrival times ` +
       `for bus ${no} at that stop, how full the next bus is and roughly where it is on the route. ` +
-      `It's free, with no app to install and no sign-up.`,
+      `It's free, with no app to install and no sign-up — and if you pin the stop, it is waiting ` +
+      `on your ezbus board next time.`,
   });
 
   return items;

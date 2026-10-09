@@ -612,6 +612,39 @@ describe('filterServiceEta', () => {
   });
 });
 
+describe('pin list', () => {
+  const stop = { code: '43179', description: 'Blk 101', roadName: 'Demo Ave 1', lat: 1, lon: 2, seq: 3 };
+
+  it('reads the board\'s pins by app.js\'s rule, corrupt storage as none', () => {
+    assert.deepEqual(route.readPinList(null), []);
+    assert.deepEqual(route.readPinList('not json'), []);
+    assert.deepEqual(route.readPinList('{"code":"1"}'), []);
+    assert.deepEqual(route.readPinList('[{"code":"1"},null,{"code":2},{"description":"x"}]'), [{ code: '1' }]);
+  });
+
+  it('appends a new pin in the board\'s row shape, nothing else', () => {
+    const pins = route.togglePinList([{ code: '10001', description: 'A', roadName: 'R' }], stop);
+    assert.deepEqual(pins, [
+      { code: '10001', description: 'A', roadName: 'R' },
+      { code: '43179', description: 'Blk 101', roadName: 'Demo Ave 1' },
+    ]);
+    assert.equal(route.isPinnedCode(pins, '43179'), true);
+  });
+
+  it('unpins only that stop and leaves foreign rows untouched', () => {
+    const foreign = { code: '10001', description: 'A', roadName: 'R', extra: true };
+    const before = [foreign, { code: '43179', description: 'Blk 101', roadName: 'Demo Ave 1' }];
+    const after = route.togglePinList(before, stop);
+    assert.deepEqual(after, [foreign]);
+    assert.equal(before.length, 2, 'input not mutated');
+    assert.equal(route.isPinnedCode(after, '43179'), false);
+  });
+
+  it('writes an empty road for a stop that has none', () => {
+    assert.deepEqual(route.togglePinList([], { code: '1', description: 'X' }), [{ code: '1', description: 'X', roadName: '' }]);
+  });
+});
+
 describe('departureSummary', () => {
   const at = (mins: number) => new Date(NOW + mins * 60_000).toISOString();
   const entry = (services: any) => ({ code: '10011', services });
