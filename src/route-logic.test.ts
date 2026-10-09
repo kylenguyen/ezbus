@@ -645,6 +645,26 @@ describe('pin list', () => {
   });
 });
 
+describe('installHintVisible', () => {
+  const base = { hasPrompt: true, dismissed: false, mode: 'anchored', anchorSource: 'remembered' };
+
+  it('asks a returning rider on the live window when the browser can install', () => {
+    assert.equal(route.installHintVisible(base), true);
+  });
+
+  it('never asks without the browser\'s prompt, after Not now, or off the live window', () => {
+    assert.equal(route.installHintVisible({ ...base, hasPrompt: false }), false);
+    assert.equal(route.installHintVisible({ ...base, dismissed: true }), false);
+    assert.equal(route.installHintVisible({ ...base, mode: 'picker' }), false);
+  });
+
+  it('does not ask a first visit — picked, nearest, or from a link', () => {
+    for (const anchorSource of ['picked', 'nearest', 'query', null, undefined]) {
+      assert.equal(route.installHintVisible({ ...base, anchorSource }), false, String(anchorSource));
+    }
+  });
+});
+
 describe('departureSummary', () => {
   const at = (mins: number) => new Date(NOW + mins * 60_000).toISOString();
   const entry = (services: any) => ({ code: '10011', services });

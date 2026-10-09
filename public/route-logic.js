@@ -620,6 +620,22 @@ export function togglePinList(pins, stop) {
 }
 
 /**
+ * Whether the anchor panel offers "Add ezbus to your home screen". Only when
+ * the browser has said it can install the app (`beforeinstallprompt` fired —
+ * Chromium only, and only when the manifest qualifies), only on the live
+ * window, and only for a rider coming back to a stop they chose before
+ * (`remembered`): the rider for whom a home-screen icon saves a step every
+ * day, and the one who has already shown they use the page. A first visit
+ * from a search is not asked. "Not now" lasts for the page view — nothing is
+ * stored, so there is no new key and no record of the refusal.
+ *
+ * @param {{hasPrompt: boolean, dismissed: boolean, mode: string, anchorSource: string | null | undefined}} state
+ */
+export function installHintVisible({ hasPrompt, dismissed, mode, anchorSource }) {
+  return hasPrompt && !dismissed && mode === 'anchored' && anchorSource === 'remembered';
+}
+
+/**
  * The picker's "next from the first stop" line, decided. A visitor who has not
  * chosen a stop yet — most arrivals from a search — otherwise sees no live
  * timing at all until they pick one; the route's first stop is the one place

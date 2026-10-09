@@ -30,6 +30,7 @@ import {
   filterServiceEta,
   foldPlan,
   haversineM,
+  installHintVisible,
   isPinnedCode,
   markTarget,
   parseServicePath,
@@ -128,6 +129,14 @@ let anchors = readAnchors(readRaw(ANCHOR_KEY));
 
 let locBusy = false;
 let locDenied = false;
+
+/**
+ * The browser's deferred install prompt, and whether "Not now" was pressed in
+ * this page view. Memory only — see installHintVisible for why nothing about
+ * the choice is stored.
+ */
+let installPrompt = null;
+let installDismissed = false;
 
 // --- storage, guarded ------------------------------------------------------
 
@@ -785,7 +794,26 @@ function renderWindow() {
       ${panelActions(stop)}
     </div>
     <ul class="spine">${below.join('')}</ul>
-    <p class="honesty">${escape(BUS_POSITION_LABEL)}</p>`;
+    <p class="honesty">${escape(BUS_POSITION_LABEL)}</p>
+    ${installHint()}`;
+}
+
+/** The one-line home-screen offer, or '' — installHintVisible decides. */
+function installHint() {
+  const show = installHintVisible({
+    hasPrompt: installPrompt !== null,
+    dismissed: installDismissed,
+    mode,
+    anchorSource: anchor?.source,
+  });
+  if (!show) return '';
+  return `<div class="install-hint">
+      <span>Check this route often? Put ezbus on your home screen.</span>
+      <span class="ih-acts">
+        <button type="button" class="hp-act" data-act="install">Add</button>
+        <button type="button" class="hp-act ih-dismiss" data-act="install-dismiss">Not now</button>
+      </span>
+    </div>`;
 }
 
 /**
@@ -1249,6 +1277,20 @@ function onAction(event) {
       case 'pin':
         if (mode === 'anchored') togglePin();
         return;
+      // prompt() needs the click's user activation, so it is called here,
+      // synchronously, before anything else.
+      case 'install':
+        if (installPrompt) {
+          const prompt = installPrompt;
+          installPrompt = null;
+          void prompt.prompt();
+          renderBody();
+        }
+        return;
+      case 'install-dismiss':
+        installDismissed = true;
+        renderBody();
+        return;
     }
   }
 
@@ -1282,6 +1324,19 @@ el.body.addEventListener('input', (event) => {
   if (event.target?.id === 'rt-search' && (mode === 'picker' || mode === 'guard')) {
     renderPickerList();
   }
+});
+
+// Chromium's install offer, held for the anchor panel rather than shown as the
+// browser's own banner over a page a stranger has only just opened.
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  if (mode === 'anchored') renderBody();
+});
+
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  if (mode === 'anchored') renderBody();
 });
 
 document.addEventListener('visibilitychange', () => {

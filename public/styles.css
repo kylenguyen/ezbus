@@ -3189,3 +3189,34 @@ h2.rt-sec {
 .hp-act:last-child {
   margin-left: auto;
 }
+
+/* The home-screen offer under the window: one muted line and two text
+   buttons, never a banner. Shown only to a returning rider (see
+   installHintVisible in route-logic.js). */
+.install-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.2rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.ih-acts {
+  display: flex;
+  gap: 1rem;
+}
+
+.install-hint .hp-act:last-child {
+  margin-left: 0;
+}
+
+.ih-dismiss {
+  color: var(--muted);
+}
