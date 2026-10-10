@@ -573,6 +573,36 @@ const DAY_PHRASES: Array<['wd' | 'sat' | 'sun', string]> = [
 const listPhrase = (items: string[]): string =>
   items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 
+/** When a group of day types runs: "every day", "on weekends", "on weekdays and Saturdays". */
+const daysPhrase = (days: Array<'wd' | 'sat' | 'sun'>): string => {
+  if (days.length === DAY_PHRASES.length) return 'every day';
+  if (days.join() === 'sat,sun') return 'on weekends';
+  return `on ${listPhrase(DAY_PHRASES.filter(([day]) => days.includes(day)).map(([, phrase]) => phrase))}`;
+};
+
+/**
+ * One direction's first and last bus as prose: day types with the same times
+ * are said once ("first bus 05:30, last bus 23:30, every day"), and an end the
+ * feed leaves blank is said to be missing rather than rendered as a dash.
+ * '' when the feed has no time at all.
+ */
+const scheduleSentence = (first: RouteStopTimes | null, last: RouteStopTimes | null): string => {
+  const groups = new Map<string, Array<'wd' | 'sat' | 'sun'>>();
+  let anyLast = false;
+  for (const [day] of DAY_PHRASES) {
+    const from = first ? fmtHHMM(first[day]) : null;
+    const to = last ? fmtHHMM(last[day]) : null;
+    if (to) anyLast = true;
+    const times = [from ? `first bus ${from}` : '', to ? `last bus ${to}` : ''].filter(Boolean).join(', ');
+    if (times) groups.set(times, [...(groups.get(times) ?? []), day]);
+  }
+  if (groups.size === 0) return '';
+  const parts = [...groups].map(([times, days]) =>
+    groups.size === 1 ? `${times}, ${daysPhrase(days)}` : `${times} ${daysPhrase(days)}`,
+  );
+  return `${parts.join('; ')}${anyLast ? '' : ' (no last bus time is published)'}`;
+};
+
 /**
  * The route's questions, answered from the same data as the facts card — the
  * phrasings people type ("first bus 74", "how often does 74 come", "where does
@@ -594,21 +624,18 @@ export const routeFaq = (
   const no = service.serviceNo;
   const items: FaqItem[] = [];
 
-  const spans = directions
-    .map((direction) => {
-      const days = DAY_PHRASES.map(([day, phrase]) => {
-        const span = daySpan(direction.firstBus, direction.lastBus, day);
-        return span ? `${phrase} ${span.replace(' – ', '–')}` : '';
-      }).filter(Boolean);
-      return days.length === 0 ? '' : `From ${direction.origin.description}: ${days.join(', ')}.`;
-    })
-    .filter(Boolean);
-  if (spans.length > 0) {
+  const schedules = new Map<string, string[]>();
+  for (const direction of directions) {
+    const schedule = scheduleSentence(direction.firstBus, direction.lastBus);
+    if (schedule) schedules.set(schedule, [...(schedules.get(schedule) ?? []), direction.origin.description]);
+  }
+  if (schedules.size > 0) {
+    const lines = [...schedules].map(([schedule, origins]) => `From ${listPhrase(origins)}: ${schedule}.`);
     items.push({
       question: `What time is the first and last bus ${no}?`,
       answer:
-        `${spans.join(' ')} These are scheduled departures from the first stop; ` +
-        `stops further along the route see the bus later.`,
+        `${lines.join(' ')} These are scheduled departures from the first stop, ` +
+        `so the bus reaches stops further along the route later.`,
     });
   }
 

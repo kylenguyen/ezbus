@@ -466,10 +466,25 @@ describe('routeFaq', () => {
   it('answers first/last bus per direction and day, saying where the times apply', () => {
     assert.equal(
       answer('What time'),
-      'From Demo Stn Exit A: weekdays 05:30–23:30, Saturdays 05:35–23:35, Sundays 05:40–23:40. ' +
-        'From Demo Stn Exit B: weekdays 05:30–23:30, Saturdays 05:35–23:35, Sundays 05:40–23:40. ' +
-        'These are scheduled departures from the first stop; stops further along the route see the bus later.',
+      'From Demo Stn Exit A and Demo Stn Exit B: first bus 05:30, last bus 23:30 on weekdays; ' +
+        'first bus 05:35, last bus 23:35 on Saturdays; first bus 05:40, last bus 23:40 on Sundays. ' +
+        'These are scheduled departures from the first stop, so the bus reaches stops further along the route later.',
     );
+  });
+
+  it('says same-time days once, and a missing last bus in words rather than a dash', () => {
+    const [d1, d2] = TRUNK_DIRECTIONS;
+    assert.ok(d1 && d2);
+    const dirs = [
+      { ...d1, firstBus: { wd: '0530', sat: '0530', sun: '0530' }, lastBus: { wd: '-', sat: '-', sun: '-' } },
+      { ...d2, firstBus: { wd: '0545', sat: '0600', sun: '0600' }, lastBus: { wd: '2350', sat: '2350', sun: '2350' } },
+    ];
+    const text = routeFaq(TRUNK, dirs, []).find((item) => item.question.startsWith('What time'))?.answer ?? '';
+    assert.ok(text.startsWith(
+      'From Demo Stn Exit A: first bus 05:30, every day (no last bus time is published). ' +
+        'From Demo Stn Exit B: first bus 05:45, last bus 23:50 on weekdays; first bus 06:00, last bus 23:50 on weekends.',
+    ));
+    assert.ok(!text.includes('––'));
   });
 
   it('answers frequency with the windows, route with places passed, operator by name', () => {
