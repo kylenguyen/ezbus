@@ -22,8 +22,13 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="canonical" href="https://ezbus.sg/" />
-    <!-- Fetched in parallel with app.js, which imports it, rather than after. -->
+    <!-- Fetched in parallel with app.js, which imports them, rather than after: a module
+         runs only once every import has arrived, and an import is discovered only once
+         app.js has downloaded, so an unlisted one costs a serial round trip before the
+         first paint. Every relative import of app.js belongs here
+         (src/modulepreload.test.ts holds the list to it). -->
     <link rel="modulepreload" href="/origin.js" />
+    <link rel="modulepreload" href="/vehicle-marks.js" />
     <link rel="stylesheet" href="/styles.css" />
     <!-- The stylesheet is what discovers this, and it is discovered late: a webfont is
          requested only once the CSS has parsed and matched a rule that uses it. Preloading
