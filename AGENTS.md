@@ -510,8 +510,10 @@ application config, so it does not breach the "read `process.env` only in
 The CI workflow the manifest comments reference,
 [.github/workflows/bus-arrival.yml](.github/workflows/bus-arrival.yml), is in
 this repository: on every push to `main` it runs `npm ci && npm test` and only
-builds and pushes `ghcr.io/kylenguyen/bus-arrival` (`:latest` plus the commit
-SHA) if that passes. A red suite therefore blocks the tag the cluster pulls.
+builds and pushes `ghcr.io/kylenguyen/ezbus` (`:latest` plus the commit SHA)
+if that passes, printing the digest in the job summary. The cluster runs the
+digest pinned in `k8s/bus-arrival.yaml`, never `:latest`, so a build reaches
+production only through a `gateway/<topic>` PR that changes the pin.
 Nothing in the repository references a path `apps/bus-arrival`. Note that the
 image build now needs `data/sg-places.json.gz` in the checkout: `COPY data
 ./data` fails without it, and a `data/` left untracked locally is a green suite
