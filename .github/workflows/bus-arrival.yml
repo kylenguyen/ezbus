@@ -64,7 +64,8 @@ jobs:
             type=raw,value=latest
             type=sha,format=long,prefix=
 
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -75,3 +76,18 @@ jobs:
           # evicted per-branch and gives worse hit rates on a single-branch repo.
           cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
+
+      # A push to main builds and pushes an image but deploys nothing: gateway runs the digest pinned in
+      # k8s/bus-arrival.yaml. Deploying this build is a gateway/<topic> PR that changes that digest.
+      - name: Digest for the deploy PR
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          SHA: ${{ github.sha }}
+        run: |
+          {
+            echo "### Image pushed"
+            echo
+            echo "\`${IMAGE}:${SHA}@${DIGEST}\`"
+            echo
+            echo "To deploy it, open a gateway/<topic> PR that sets this digest in k8s/bus-arrival.yaml."
+          } >> "$GITHUB_STEP_SUMMARY"
