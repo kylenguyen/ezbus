@@ -33,15 +33,14 @@ spec:
       containers:
       - name: bus-arrival
         # Built and pushed by .github/workflows/bus-arrival.yml on every push to
-        # main. Multi-arch (amd64 + arm64), so the same tag runs on an Apple
-        # Silicon k3s VM and an x86 node. Deploy a new build with:
-        #   kubectl -n ezbus rollout restart deployment/bus-arrival
-        # Roll back by pinning the SHA tag that workflow also pushes:
-        #   kubectl -n ezbus set image deployment/bus-arrival bus-arrival=ghcr.io/kylenguyen/bus-arrival:<sha>
-        image: ghcr.io/kylenguyen/ezbus:latest
-        # Required, not incidental: a moving tag with IfNotPresent would keep
-        # serving whatever the node cached the first time and silently ignore
-        # every rebuild.
+        # main. Multi-arch (amd64 + arm64), so the same digest runs on an Apple
+        # Silicon k3s VM and an x86 node. Pinned by digest: a push to main or a
+        # pod restart changes nothing here. Deploy a build with a gateway/<topic>
+        # PR that sets the commit SHA tag and digest from that build's job
+        # summary; roll back by applying the previous version of this file.
+        image: ghcr.io/kylenguyen/ezbus:8471fa1286a4da10e4d5ff87b246492da1bdbd65@sha256:515bdc0e7a1f2274096329f301a99ab8d4aa76f72029e942235c750bd2485f68
+        # With a digest the node's cache can only hold this exact image; Always
+        # stays so a start also confirms the registry still serves it.
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -167,7 +166,8 @@ spec:
     spec:
       containers:
       - name: cloudflared
-        image: cloudflare/cloudflared:latest
+        # Pinned by digest; upgrade with a gateway/<topic> PR that changes tag and digest together.
+        image: cloudflare/cloudflared:2026.10.7@sha256:4955524aeaa379e154023d5a027c250f7b35041a2e7e950cf13f144bc9b9c5ba
         args:
         - tunnel
         - --no-autoupdate
