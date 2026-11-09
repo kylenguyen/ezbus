@@ -1,0 +1,8 @@
+# Fixture: breaks namespace only.
+# expect: namespace
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x
+data:
+  a: b

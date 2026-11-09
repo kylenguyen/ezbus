@@ -478,6 +478,17 @@ These are constraints, not preferences:
 
 ## Deployment
 
+**`main` is protected, and all work goes through pull requests.** Branch, push
+the branch, open a PR; never push to `main`. Changes under `k8s/` or `.github/`
+need Kyle's review (`.github/CODEOWNERS`). The manifests in `k8s/` are
+production (gateway, `ezbus.sg`): a change to them goes on a `gateway/<topic>`
+branch whose PR body carries the hand-over from sovrin's
+`hosts/gateway/README.md` (what and why, diff, apply, verify, rollback, steps
+outside the repo), and Kyle applies it. A push to `main` builds an image but
+deploys nothing: gateway runs the digest pinned in `k8s/bus-arrival.yaml`, and
+a deploy is a PR that changes that digest (the build's job summary prints it).
+CI checks the manifests on every PR (`k8s/tests/manifest-test.sh`).
+
 Container is a three-stage build ([Dockerfile](Dockerfile)) running as `node`
 with a read-only root filesystem. Kubernetes manifests are in
 [k8s/bus-arrival.yaml](k8s/bus-arrival.yaml): readiness hits `/healthz`,

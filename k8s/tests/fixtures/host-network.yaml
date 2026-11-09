@@ -1,0 +1,22 @@
+# Fixture: breaks privileged only.
+# expect: privileged
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: x}
+  template:
+    metadata:
+      labels: {app: x}
+    spec:
+      hostNetwork: true
+      containers:
+      - name: x
+        image: nginx@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        resources:
+          requests: {cpu: 10m, memory: 16Mi}
+          limits: {cpu: 100m, memory: 64Mi}

@@ -1,0 +1,22 @@
+# Static checks on the production manifests in k8s/ (k8s/tests/manifest-test.sh): kubeconform, images pinned by
+# digest, requests and limits, nothing privileged, namespaces. Tests only: no secrets, no deploy.
+name: manifests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  manifests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - run: sudo apt-get install -y -qq python3-yaml >/dev/null
+      - run: bash k8s/tests/manifest-test.sh

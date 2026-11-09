@@ -1,0 +1,4 @@
+# Production manifests and CI need Kyle's review: main is protected and requires code-owner approval
+# (sovrin docs/tiers-plan.md, B2). Agents work on branches and open pull requests.
+/k8s/ @kylenguyen
+/.github/ @kylenguyen
